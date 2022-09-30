@@ -2,17 +2,8 @@ open Benchtop
 
 let benchpress_share_dir = "/home/tiky/.local/share/benchpress" 
 
-let rev_mapi fn = 
-  let rec aux i acc = function
-  | [] -> acc
-  | hd :: tl -> 
-      aux (i+1) (fn i hd :: acc) tl 
-  in
-  aux 0 []
-
 let string_of_int = Format.sprintf "%i"
 let string_of_float = Format.sprintf "%f"
-
 
 let int_of_error_code = 
   let open Unix in function
@@ -22,28 +13,38 @@ let error_code_of_int i =
   Unix.WEXITED i
 
 module Problem : sig 
-  type t
   type res = Sat | Unsat | Unknown | Error
+  type ext = Ae | Smt2 | Psmt2
   
-  val is_successful : t -> bool
-end = struct
-  type res = Sat | Unsat | Unknown | Error
-  
-  type t = {
+  type t = private {
     prover: string;
-    file_path: string;
+    pb_name: string;
+    ext: ext;
     res: res;
     expected_res: res;
     timeout: int;
     error_code: Unix.process_status;
     rtime: float 
   }
-  let string_of_result = function
-    | Sat -> "sat"
-    | Unsat -> "unsat"
-    | Unknown -> "unknown"
-    | Error -> "error"
+ 
+  val make : prover:string -> file:string -> res:string 
+    -> file_expect:string -> timeout:int -> errcode:int -> rtime:float -> t
+  val is_successful : t -> bool
+end = struct
+  type res = Sat | Unsat | Unknown | Error
+  type ext = Ae | Smt2 | Psmt2
 
+  type t = {
+    prover: string;
+    pb_name: string;
+    ext: ext;
+    res: res;
+    expected_res: res;
+    timeout: int;
+    error_code: Unix.process_status;
+    rtime: float 
+  }
+  
   let result_of_string = function
     | "sat" -> Sat
     | "unsat" -> Unsat
@@ -51,12 +52,21 @@ end = struct
     | "error" -> Error
     | str -> 
       failwith (Format.sprintf "Unexpected result: %s" str)
+      
+  let ext_of_string = function
+    | ".ae" -> Ae
+    | ".smt2" -> Smt2
+    | ".psmt2" -> Psmt2
+    | str -> 
+      failwith (Format.sprintf "Unexpected extension: %s" str)
 
-  let make ~prover ~file_path ~res ~file_expect ~timeout ~errcode ~rtime =
+  let make ~prover ~file ~res ~file_expect ~timeout ~errcode ~rtime =
+    let pb_name = file |> Filename.basename |> Filename.chop_extension in
+    let ext = file |> Filename.extension |> ext_of_string in
     let res = result_of_string res in
     let expected_res = result_of_string file_expect in
     let error_code = error_code_of_int errcode in
-    {prover; file_path; res; expected_res; timeout; error_code; rtime} 
+    {prover; pb_name; ext; res; expected_res; timeout; error_code; rtime} 
 
   let is_successful pb =
     match (pb.res, pb.expected_res) with
@@ -65,11 +75,24 @@ end = struct
     | _ -> false 
 end
 
+let string_of_result (res : Problem.res) =
+  match res with
+  | Sat -> "sat"
+  | Unsat -> "unsat"
+  | Unknown -> "unknown"
+  | Error -> "error"
+
+let string_of_ext (res : Problem.ext) =
+  match res with
+  | Ae -> "ae"
+  | Smt2 -> "smt2"
+  | Psmt2 -> "psmt2"
+
 module Request : sig 
   type ('a, 'b) t = (module Caqti_lwt.CONNECTION) -> 
     ('a, [> Caqti_error.call_or_retrieve] as 'b) result Lwt.t
 
-  val select_problems : ? -> (Problem.t list, _) t
+  val select_problems : (Problem.t list, _) t
 
   val count_tests : (int, _) t
   val count_successful_tests : (int, _) t
@@ -84,40 +107,50 @@ end
  
     let problem =
       let open Problem in
-      let encode {prover; file_path; result; expected_result; error_code} =
-        let res = string_of_result result in
-        let file_expect = string_of_result expected_result in
-        Ok (prover, (file_path, (res, (file_expect, error_code))))
+      let encode {prover; pb_name; res; 
+        expected_res; timeout; error_code; 
+        rtime} =
+        let file_path = pb_name in
+        let res = string_of_result res in
+        let file_expect = string_of_result expected_res in
+        let errcode = int_of_error_code error_code in 
+        Ok 
+        (prover, 
+          (file_path, 
+            (res, 
+              (file_expect, 
+                (timeout, 
+                  (errcode, rtime))))))
       in
       let decode 
         (prover, 
           (file, 
             (res, 
-              (file_expect, 
-                (errcode, rtime))))) = 
-        Ok Problem.make prover; file_path; result; 
-          expected_result; error_code} 
+              (file_expect,
+                (timeout,
+                  (errcode, rtime)))))) = 
+        Ok (Problem.make ~prover ~file ~res 
+          ~file_expect ~timeout ~errcode ~rtime) 
       in
       let rep_ty = 
-        Caqti_type.(tup2 string 
+        Caqti_type.
+        (tup2 string 
           (tup2 string 
             (tup2 string 
-              (tup2 string (tup2 int, float)))))  
+              (tup2 string 
+                (tup2 int 
+                  (tup2 int float))))))  
       in
       custom ~encode ~decode rep_ty
 
-    let select_problems ?(successful = false) () =
-      let test = if successful then
-        "WHERE res = file_expect"
-      else "" in
+    let select_problems =
       unit ->* problem @@ 
-      Format.sprintf {eos|
+      {eos|
         SELECT 
           prover, file, res, 
-          file_expect, errcode 
+          file_expect, timeout, errcode, rtime 
         FROM prover_res 
-        %s
-      |eos} test
+      |eos}
 
     let count_tests =
       unit ->! int @@
@@ -282,11 +315,15 @@ end = struct
 end
 
 module Views : sig
-  val render_404_not_found : Dream.request -> string Lwt.t
-  val render_rounds_list : Round.t list -> Dream.request -> string Lwt.t
-  val render_round_detail : Round.t -> Dream.request -> string Lwt.t
-  val render_problem_detail : Problem.t -> Dream.request -> string Lwt.t
+  type view = Dream.request -> string Lwt.t
+
+  val render_404_not_found : view
+  val render_rounds_list : Round.t list -> view
+  val render_round_detail : Round.t -> view
+  val render_problem_detail : Problem.t -> view
 end = struct
+  type view = Dream.request -> string Lwt.t
+  
   let html_to_string html = 
     Lwt.return @@ Format.asprintf "%a@." (Tyxml.Html.pp ~indent:true ()) html
 
@@ -395,32 +432,40 @@ end = struct
     page_layout ~subtitle:"Rounds" ~content:[form] 
     |> html_to_string
 
-  let problem_row ~number ~pb_file ~result ~expected_result =
+  let problem_row ~number pb =
     let open Tyxml.Html in
+    let open Problem in
     tr [
         th [txt (string_of_int number)]
-      ; td ~a:[a_class ["text-left"]] 
-          [txt @@ pb_file]
+      ; td ~a:[a_class ["text-left"]] [txt @@ pb.pb_name]
       ; td ~a:[a_class ["text-center"]] 
-          [txt @@ string_of_result result]
+          [txt @@ string_of_ext pb.ext]
       ; td ~a:[a_class ["text-center"]] 
-          [txt @@ string_of_result expected_result]
+          [txt @@ string_of_int pb.timeout]
+      ; td ~a:[a_class ["text-center"]] 
+          [txt @@ string_of_int @@ int_of_error_code pb.error_code]
+      ; td ~a:[a_class ["text-center"]] 
+          [txt @@ string_of_float pb.rtime]
+      ; td ~a:[a_class ["text-center"]] 
+          [txt @@ string_of_result pb.res]
+      ; td ~a:[a_class ["text-center"]] 
+          [txt @@ string_of_result pb.expected_res]
     ]
 
   let problems_table pbs =
     let open Tyxml.Html in
     let rows = pbs |> List.mapi (fun i pb ->
-      let open Problem in
-      problem_row ~number:i 
-        ~pb_file:pb.file_path 
-        ~result:pb.result
-        ~expected_result:pb.expected_result
+      problem_row ~number:i pb
     ) in
     tablex ~a:[a_class ["table"]] 
       ~thead:(thead [
         tr [
           th [txt "#"]
         ; th ~a:[a_class ["text-left"]] [txt "Problem"]
+        ; th ~a:[a_class ["text-center"]] [txt "Extension"]
+        ; th ~a:[a_class ["text-center"]] [txt "Timeout"]
+        ; th ~a:[a_class ["text-center"]] [txt "Error code"]
+        ; th ~a:[a_class ["text-center"]] [txt "Running time"]
         ; th ~a:[a_class ["text-center"]] [txt "Result"]
         ; th ~a:[a_class ["text-center"]] [txt "Expected"]
       ]
