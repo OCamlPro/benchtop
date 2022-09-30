@@ -1,0 +1,4 @@
+(*(set-info :status valid)*)
+
+goal g10 : forall x:int. x*x*x = 1 -> x = 1
+

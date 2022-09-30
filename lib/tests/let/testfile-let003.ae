@@ -1,0 +1,6 @@
+(*(set-info :status valid)*)
+
+
+goal g3:
+     let x = 3 in x=2 -> false
+

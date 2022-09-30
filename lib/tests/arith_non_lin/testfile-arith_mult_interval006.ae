@@ -1,0 +1,7 @@
+(*(set-info :status valid)*)
+goal g:
+  forall a, b : int.
+  a = b * b  ->
+  b > a ->
+  2 > a ->
+  false

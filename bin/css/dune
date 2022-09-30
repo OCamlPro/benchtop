@@ -1,0 +1,3 @@
+(install
+  (section (site (benchtop css)))
+  (files custom.css))

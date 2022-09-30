@@ -1,0 +1,10 @@
+(*(set-info :status valid)*)
+
+
+goal g12 :
+  forall i,j:'a.
+  forall v : 'b.
+  forall b : ('a,'b) farray.
+  b = b[j<-v]->
+  b[j]= v
+

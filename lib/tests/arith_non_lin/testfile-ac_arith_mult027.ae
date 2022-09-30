@@ -1,0 +1,7 @@
+(*(set-info :status valid)*)
+
+(* inconsistent *)
+goal g24_4:
+  forall x:int. x*x*x = x*x -> x*x = 4 -> false
+
+

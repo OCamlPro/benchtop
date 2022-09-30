@@ -1,0 +1,10 @@
+(*(set-info :status valid)*)
+
+
+logic a,b,c, beta,gamma : int
+logic ac f : int,int -> int
+
+goal g10 :
+  gamma = f(a,b)->
+  f(a,c) = beta  ->
+  f(c,gamma) = f(b,beta)

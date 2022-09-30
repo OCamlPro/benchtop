@@ -1,0 +1,8 @@
+(*(set-info :status valid)*)
+
+
+type t
+logic P : t, int -> prop
+
+goal g4 : forall x:t. (let y=3 in P(x,y)) ->P(x,3)
+

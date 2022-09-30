@@ -1,0 +1,7 @@
+(*(set-info :status valid)*)
+
+logic x,y:int
+goal g12 :
+     x = 5 -> y - (x / 10) = y
+
+

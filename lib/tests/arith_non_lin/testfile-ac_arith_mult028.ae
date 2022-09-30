@@ -1,0 +1,6 @@
+(*(set-info :status valid)*)
+
+goal g25:
+  forall x:int. x >= 0 -> x <= (x + 1) * (x + 1)
+
+

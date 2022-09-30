@@ -1,0 +1,4 @@
+(*(set-info :status valid)*)
+
+goal g6: forall x:int. let x=x+x in x=x
+

@@ -1,0 +1,7 @@
+(*(set-info :status valid)*)
+
+logic p,q,r : prop
+goal g23: (p -> q) and (p and q -> r) -> (p -> r)
+
+
+

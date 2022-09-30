@@ -1,0 +1,5 @@
+(*(set-info :status valid)*)
+
+logic x:int
+goal g8 : 0/0 = 0/0
+

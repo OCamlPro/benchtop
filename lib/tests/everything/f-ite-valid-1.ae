@@ -1,0 +1,6 @@
+(*(set-info :status valid)*)
+logic b : bool
+logic p : prop
+goal g:
+b ->
+if b then 1 <= 1 else  2 <= 1

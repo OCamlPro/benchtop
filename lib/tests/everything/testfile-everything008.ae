@@ -1,0 +1,3 @@
+(*(set-info :status valid)*)
+
+goal g8 : forall x:int. x < 3 -> x <= 2

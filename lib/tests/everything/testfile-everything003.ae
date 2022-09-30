@@ -1,0 +1,9 @@
+(*(set-info :status valid)*)
+
+type t
+
+logic c : t
+logic f : t -> t
+logic p,q : t -> prop
+
+goal g3 : (forall x:t. p(x)) -> p(c)

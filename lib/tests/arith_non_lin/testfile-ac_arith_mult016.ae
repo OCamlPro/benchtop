@@ -1,0 +1,6 @@
+(*(set-info :status valid)*)
+
+
+logic x,y:int
+
+goal g16: x*x <=0 -> x + y = 4 -> y = 4

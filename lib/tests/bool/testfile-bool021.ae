@@ -1,0 +1,5 @@
+(*(set-info :status valid)*)
+
+logic A,B,C,P,Q,R,S: prop
+goal g21: (A and (B or C)) <-> ((A and B) or (A and C))
+

@@ -1,0 +1,5 @@
+(*(set-info :status valid)*)
+
+logic y:real
+goal g25 : y*y = 9. -> -3. = y or  y = 3.
+

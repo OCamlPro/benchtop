@@ -1,0 +1,5 @@
+(*(set-info :status valid)*)
+
+logic x,y:int
+goal g1: 2 <= x / y <= 4 -> y = 2 -> 4 <= x <= 9
+

@@ -1,0 +1,4 @@
+(*(set-info :status valid)*)
+goal g:
+     1 = 0 ->
+     false

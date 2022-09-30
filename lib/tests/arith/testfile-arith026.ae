@@ -1,0 +1,4 @@
+(*(set-info :status valid)*)
+
+goal g26: forall i0:int.(i0 <= 7) -> (i0 <> 6) -> (i0 >= 6) -> i0 = 7
+

@@ -1,0 +1,8 @@
+(*(set-info :status valid)*)
+
+goal g40 (*sqrt_po_8*):
+  forall x,y:int.
+  x <> 0 ->
+  y <> 0 ->
+  (x + 1) / y = ((x / x) + x) / y
+

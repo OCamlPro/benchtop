@@ -1,0 +1,15 @@
+table td {
+  vertical-align: middle;
+}
+
+table tr:nth-child(odd) td {
+  background-color: #d8e2eb;
+}
+
+table tr:nth-child(even) td {
+  background-color: white;
+}
+
+.bg-success {
+  background-color: #b6d7a8 !important;
+}

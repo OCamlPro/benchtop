@@ -1,0 +1,3 @@
+(*(set-info :status valid)*)
+
+goal g4: [|10|]=[|1001|]^{2,3}
