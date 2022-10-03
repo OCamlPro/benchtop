@@ -12,32 +12,47 @@ let int_of_error_code =
 let error_code_of_int i =
   Unix.WEXITED i
 
+type res = Sat | Unsat | Unknown | Error
+type ext = Ae | Smt2 | Psmt2
+
+let string_of_result res =
+  match res with
+  | Sat -> "sat"
+  | Unsat -> "unsat"
+  | Unknown -> "unknown"
+  | Error -> "error"
+
+let string_of_ext ext =
+  match ext with
+  | Ae -> "ae"
+  | Smt2 -> "smt2"
+  | Psmt2 -> "psmt2"
+
 module Problem : sig 
-  type res = Sat | Unsat | Unknown | Error
-  type ext = Ae | Smt2 | Psmt2
-  
   type t = private {
     prover: string;
     pb_name: string;
-    ext: ext;
+    pb_path: string;
+    pb_ext: ext;
     res: res;
     expected_res: res;
     timeout: int;
     error_code: Unix.process_status;
     rtime: float 
   }
- 
-  val make : prover:string -> file:string -> res:string 
-    -> file_expect:string -> timeout:int -> errcode:int -> rtime:float -> t
+
+  val decode : string * (string * (string * (string * (int * (int * float))))) 
+    -> (t, _) result
+  val encode : t -> 
+    (string * (string * (string * (string * (int * (int * float))))), _) result 
+
   val is_successful : t -> bool
 end = struct
-  type res = Sat | Unsat | Unknown | Error
-  type ext = Ae | Smt2 | Psmt2
-
   type t = {
     prover: string;
     pb_name: string;
-    ext: ext;
+    pb_path: string;
+    pb_ext: ext;
     res: res;
     expected_res: res;
     timeout: int;
@@ -60,13 +75,24 @@ end = struct
     | str -> 
       failwith (Format.sprintf "Unexpected extension: %s" str)
 
-  let make ~prover ~file ~res ~file_expect ~timeout ~errcode ~rtime =
-    let pb_name = file |> Filename.basename |> Filename.chop_extension in
-    let ext = file |> Filename.extension |> ext_of_string in
+  let decode (prover, (file, (res, (file_expect, 
+    (timeout, (errcode, rtime)))))) = 
+    let pb_name = Filename.basename file |> Filename.chop_extension in
+    let pb_path = Filename.dirname file in
+    let pb_ext = Filename.extension file |> ext_of_string in
     let res = result_of_string res in
     let expected_res = result_of_string file_expect in
     let error_code = error_code_of_int errcode in
-    {prover; pb_name; ext; res; expected_res; timeout; error_code; rtime} 
+    Ok {prover; pb_name; pb_path; pb_ext; res; expected_res; 
+      timeout; error_code; rtime} 
+
+  let encode {prover; pb_name; pb_path; pb_ext; res; expected_res; 
+    timeout; error_code; rtime} = 
+    let file_path = Filename.concat pb_path (pb_name ^ string_of_ext pb_ext) in
+    let res = string_of_result res in 
+    let file_expect = string_of_result expected_res in
+    let errcode = int_of_error_code error_code in 
+    Ok (prover, (file_path, (res, (file_expect, (timeout, (errcode, rtime))))))
 
   let is_successful pb =
     match (pb.res, pb.expected_res) with
@@ -75,63 +101,48 @@ end = struct
     | _ -> false 
 end
 
-let string_of_result (res : Problem.res) =
-  match res with
-  | Sat -> "sat"
-  | Unsat -> "unsat"
-  | Unknown -> "unknown"
-  | Error -> "error"
+module Round_info : sig
+  type t = private {
+    provers: (string * string) list;
+    uuid: string;
+    date: Unix.tm;
+    ctr_pbs : int;
+    ctr_suc_pbs: int;
+  }
 
-let string_of_ext (res : Problem.ext) =
-  match res with
-  | Ae -> "ae"
-  | Smt2 -> "smt2"
-  | Psmt2 -> "psmt2"
+  val make: provers: (string * string) list -> uuid: string -> 
+    timestamp: float -> ctr_pbs: int -> ctr_suc_pbs: int -> t
+end = struct
+  type t = {
+    provers: (string * string) list;
+    uuid: string;
+    date: Unix.tm;
+    ctr_pbs : int;
+    ctr_suc_pbs: int;
+  }
+
+  let make ~provers ~uuid ~timestamp ~ctr_pbs ~ctr_suc_pbs =
+    let date = Unix.localtime timestamp in
+    {provers; uuid; date; ctr_pbs; ctr_suc_pbs}
+end
 
 module Request : sig 
-  type ('a, 'b) t = (module Caqti_lwt.CONNECTION) -> 
-    ('a, [> Caqti_error.call_or_retrieve] as 'b) result Lwt.t
+  type 'a request = (module Caqti_lwt.CONNECTION) -> 
+    ('a, string) result Lwt.t
 
-  val select_problems : (Problem.t list, _) t
+  val round_info : Round_info.t request
 
-  val count_tests : (int, _) t
-  val count_successful_tests : (int, _) t
-end 
-= struct
-  type ('a, 'b) t = (module Caqti_lwt.CONNECTION) -> 
-    ('a, [> Caqti_error.call_or_retrieve] as 'b) result Lwt.t
+  val select_problems : Problem.t list request
+end = struct
+  type 'a request = (module Caqti_lwt.CONNECTION) -> 
+    ('a, string) result Lwt.t
 
   module Query_strings = struct
     open Caqti_request.Infix
     open Caqti_type.Std
  
-    let problem =
+    let select_problems =
       let open Problem in
-      let encode {prover; pb_name; res; 
-        expected_res; timeout; error_code; 
-        rtime} =
-        let file_path = pb_name in
-        let res = string_of_result res in
-        let file_expect = string_of_result expected_res in
-        let errcode = int_of_error_code error_code in 
-        Ok 
-        (prover, 
-          (file_path, 
-            (res, 
-              (file_expect, 
-                (timeout, 
-                  (errcode, rtime))))))
-      in
-      let decode 
-        (prover, 
-          (file, 
-            (res, 
-              (file_expect,
-                (timeout,
-                  (errcode, rtime)))))) = 
-        Ok (Problem.make ~prover ~file ~res 
-          ~file_expect ~timeout ~errcode ~rtime) 
-      in
       let rep_ty = 
         Caqti_type.
         (tup2 string 
@@ -141,15 +152,36 @@ end
                 (tup2 int 
                   (tup2 int float))))))  
       in
-      custom ~encode ~decode rep_ty
-
-    let select_problems =
+      let problem = custom ~encode ~decode rep_ty in
       unit ->* problem @@ 
       {eos|
         SELECT 
           prover, file, res, 
           file_expect, timeout, errcode, rtime 
         FROM prover_res 
+      |eos}
+
+    let meta_info = 
+      let rep_ty = Caqti_type.(tup4 string float int int) in 
+      unit ->! rep_ty @@
+      {eos|
+        SELECT
+          CAST ((SELECT value FROM meta WHERE key = "uuid") AS TEXT) 
+            AS uuid, 
+          CAST ((SELECT value FROM meta WHERE key = "timestamp") AS REAL) 
+            AS timestamp,
+          (SELECT COUNT(file) FROM prover_res) 
+            AS ctr_pbs,
+          (SELECT COUNT(file) FROM prover_res WHERE res = file_expect) 
+            AS ctr_suc_pbs
+      |eos}
+
+    let provers = 
+      unit ->! Caqti_type.(tup2 string string) @@
+      {eos|
+        SELECT 
+          name, version
+        FROM prover
       |eos}
 
     let count_tests =
@@ -170,172 +202,195 @@ end
       |eos}
   end
 
+  let round_info (module Db : Caqti_lwt.CONNECTION) =
+    match%lwt Db.find Query_strings.meta_info () with
+    | Ok (uuid, timestamp, ctr_pbs, ctr_suc_pbs) -> begin
+      match%lwt Db.collect_list Query_strings.provers () with
+      | Ok provers ->
+          let round_info = Round_info.make 
+            ~provers ~uuid ~timestamp ~ctr_pbs ~ctr_suc_pbs
+          in 
+          Lwt.return (Ok round_info) 
+      | Error err -> 
+        Dream.log "%a" Caqti_error.pp err;
+        Lwt.return (Result.error "Cannot get the information of the round")
+    end
+    | Error err -> 
+        Dream.log "%a" Caqti_error.pp err;
+        Lwt.return (Result.error "Cannot get the information of the round")
+
   let select_problems (module Db : Caqti_lwt.CONNECTION) =
-    Db.collect_list Query_strings.select_problems ()
-
-  let count_tests (module Db : Caqti_lwt.CONNECTION) =
-    Db.find Query_strings.count_tests ()
-
-  let count_successful_tests (module Db : Caqti_lwt.CONNECTION) =
-    Db.find Query_strings.count_successful_tests ()
-end 
+    match%lwt Db.collect_list Query_strings.select_problems () with
+    | Ok _ as res -> Lwt.return res
+    | Error err -> 
+        Dream.log "%a" Caqti_error.pp err;
+        Lwt.return (Result.Error "Cannot get the list of problems")
+end
 
 module Round : sig
-  type t
-  type status = Pending | Running | Done | Cancelled
+  type process
   
-  val make : t
-  val resurect : db_file:string -> t
+  type status =  
+    | Pending     
+    | Running of process 
+    | Done of Round_info.t
+    | Cancelled 
 
+  type t = private {
+    cmd: Lwt_process.command;
+    config: string;
+    date: Unix.tm;
+    db_file: string option;
+    status: status
+  }
+
+  val make : args: string array -> t
+  val resurect : db_file: string -> t Lwt.t
+  val update : (module Caqti_lwt.CONNECTION) -> t -> t Lwt.t
   val run : t -> t
-  val stop : t -> t
+  val cancel : t -> t
 
-  val status : t -> status
-  val date : t -> string
-  val digest : t -> string
+  val problems : t -> Problem.t list Lwt.t 
+end = struct 
+  type process = Lwt_process.process_none
 
-  val list_problems : t -> Problem.t list Lwt.t
-  val nb_tests : t -> int Lwt.t
-  val nb_successful_tests : t -> int Lwt.t
-end = struct
-  type t_info = {
-    timestamp: float;
+  type status = 
+    | Pending 
+    | Running of process 
+    | Done of Round_info.t
+    | Cancelled 
+
+  type t = {
+    cmd: Lwt_process.command;
+    config: string;
+    date: Unix.tm;
+    db_file: string option;
+    status: status
   }
-  type t_running = {
-    info: t_info;
-    process: Lwt_process.process_none;
+  
+  let make ~args = {
+    cmd = ("benchpress", args); 
+    config = "default";
+    date = Unix.time () |> Unix.localtime;
+    db_file = None;
+    status = Pending 
   }
-  type t_done = {
-    info: t_info;
-    db_file: string;
-    rc: Unix.process_status Lwt.t
-  }
-  type t = 
-    | S_pending of t_info
-    | S_running of t_running
-    | S_done of t_done
-    | S_cancelled of t_info
 
-  type status = Pending | Running | Done | Cancelled
-
-  let make = 
-    let t = Unix.time () in
-    S_pending {timestamp=t}
-
-  let resurect ~db_file = 
-    let timestamp = Unix.time () in 
-    let info = {timestamp} in
-    S_done {info; db_file = db_file; rc = Lwt.return (Unix.WEXITED 0)}
-
-  let run = function
-    | S_pending i -> 
-        let command = ("benchpress", [||]) in
-        let process = Lwt_process.open_process_none command in
-        S_running {info=i; process}
-    | S_running _ | S_done _ | S_cancelled _ as round -> round 
-
-  let stop = function
-    | S_pending i ->
-        let rc = Lwt.return (Unix.WSTOPPED 0) in
-        S_done {info=i; db_file=""; rc}
-    | S_running {info; process} ->
-        process#terminate; 
-        S_done {info; db_file=""; rc=process#close}
-    | S_done _ | S_cancelled _ as round -> round
-
-  let info = function 
-    | S_pending i -> i
-    | S_running r -> r.info
-    | S_done d -> d.info
-    | S_cancelled i -> i
-
-  let status = function
-    | S_pending _ -> Pending
-    | S_running _ -> Running
-    | S_done _ -> Done
-    | S_cancelled _ -> Cancelled
-
-  let date round = 
-    let tm = Unix.localtime (info round).timestamp in
-    Format.sprintf "le %i/%02i/%04i à %i:%02i:%02i"
-      tm.tm_mday tm.tm_mon tm.tm_year
-      tm.tm_hour tm.tm_min tm.tm_sec 
-
-  let digest round = 
-    let str = match round with
-    | S_pending i -> string_of_float i.timestamp
-    | S_running r -> string_of_float r.info.timestamp 
-    | S_done d -> d.db_file ^ (string_of_float d.info.timestamp)
-    | S_cancelled _ -> ""
-    in
-    str |> Digest.string |> Digest.to_hex
-
-  let connect = function 
-    | S_pending _ | S_running _ | S_cancelled _ -> 
-        Lwt.return None
-    | S_done d -> 
+  let connect round = 
+    match round.db_file with
+    | Some db_file -> begin
       let db_uri = 
-        "sqlite3://" ^ Filename.concat benchpress_share_dir d.db_file 
+        "sqlite3://" ^ Filename.concat benchpress_share_dir db_file 
         |> Uri.of_string
       in
       match%lwt Caqti_lwt.connect db_uri with
       | Ok con -> Lwt.return (Some con)
       | Error err ->
-          Dream.log "%a" Caqti_error.pp err;
+          Dream.log "%a" Caqti_error.pp err; 
           Lwt.return None
+      end
+    | None -> failwith "Cannot connect the database"
 
-  let nb_tests round =
-    match%lwt connect round with
-    | Some con ->
-        begin match%lwt Request.count_tests con with
-        | Ok n -> Lwt.return n
-        | Error _ -> Lwt.return 0 
-        end
-    | None -> Lwt.return 0
+  let update db round = 
+    match round.status with
+    | Pending | Running _ | Done _ -> begin 
+      match%lwt Request.round_info db with
+      | Ok info -> 
+          Lwt.return { round with date = info.date; status = Done info }
+      | Error msg -> 
+          Dream.log "%s" msg; 
+          Lwt.return round
+      end
+    | Cancelled -> Lwt.return round
 
-  let nb_successful_tests round =
+  let resurect ~db_file = 
+    let round = { (make ~args:[||]) with db_file = Some db_file } in
     match%lwt connect round with
-    | Some con ->
-        begin match%lwt Request.count_successful_tests con with
-        | Ok n -> Lwt.return n
-        | Error _ -> Lwt.return 0 
-        end
-    | None -> Lwt.return 0
+    | Some con -> update con round 
+    | None -> 
+        Dream.log "Cannot resurect the round %s" db_file;
+        Lwt.return round
+  
+  let run round = 
+    match round.status with
+    | Pending ->  
+        let proc = Lwt_process.open_process_none round.cmd in 
+        let date = Unix.time () |> Unix.localtime in
+        { round with status = Running proc; date } 
+    | Running _ | Done _ | Cancelled -> round 
 
-  let list_problems round = 
-    match%lwt connect round with
-    | Some con -> 
-        begin match%lwt Request.select_problems con with
-        | Ok pbs -> Lwt.return pbs
-        | Error err ->
-            Dream.log "%a" Caqti_error.pp err;
-            Lwt.return []
+  let cancel round =  
+    match round.status with
+    | Pending -> { round with status = Cancelled }    
+    | Running proc -> begin 
+        proc#terminate;
+        ignore proc#close;
+        { round with status = Cancelled } 
+      end
+    | Done _ | Cancelled -> round
+
+  let problems round =
+    match round.status with
+    | Done info -> begin
+      match%lwt connect round with
+      | Some con -> begin
+          match%lwt Request.select_problems con with
+          | Ok lst -> Lwt.return lst
+          | Error _ -> Lwt.return []
         end
-    | None -> Lwt.return []
-end
+      | None ->
+          Dream.log "Cannot get problems list";
+          Lwt.return []
+      end
+    | Pending | Running _ | Cancelled -> Lwt.return []
+end 
 
 module Views : sig
-  type view = Dream.request -> string Lwt.t
+  type view = Dream.request -> string 
 
   val render_404_not_found : view
   val render_rounds_list : Round.t list -> view
-  val render_round_detail : Round.t -> view
+  val render_round_detail : Problem.t list -> view
   val render_problem_detail : Problem.t -> view
 end = struct
-  type view = Dream.request -> string Lwt.t
+  type view = Dream.request -> string 
   
   let html_to_string html = 
-    Lwt.return @@ Format.asprintf "%a@." (Tyxml.Html.pp ~indent:true ()) html
+    Format.asprintf "%a@." (Tyxml.Html.pp ~indent:true ()) html
 
-  let page_layout ~subtitle ~content =
+  let format_date (tm : Unix.tm) = 
+    Format.sprintf "%02i/%02i/%04i %i:%02i:%02i"
+      tm.tm_mday tm.tm_mon tm.tm_year
+      tm.tm_hour tm.tm_min tm.tm_sec 
+
+  let sprintf_list pp lst =
+    let buf = Buffer.create 200 in
+    let fmt = Format.formatter_of_buffer buf in
+    let pp_sep fmt () = Format.fprintf fmt ", " in 
+    Format.pp_print_list ~pp_sep pp fmt lst;
+    Buffer.to_seq buf |> String.of_seq
+
+  let navbar content = 
+    let open Tyxml in
+    [%html
+      "<header class=\"navbar bg-light sticky-top\">\
+        <div class=\"container-fluid\">\
+          <a class=\"navbar-brand text-primary\" href=\"#\">Benchtop</a>"
+          content  
+        "</div>\
+      </header>"
+    ]
+
+  let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
     let open Tyxml.Html in
     let str = Format.sprintf "Benchtop -- %s" subtitle in
-    let css_custom_path = "./css/custom.css" in
-    let css_bootstrap_url = "https://cdn.jsdelivr.net/npm\
-      /bootstrap@4.0.0/dist/css/bootstrap.min.css"
+    (* TODO: Replace the absolute url by a variable. *)
+    let css_custom_path = "http://localhost:8080/css/custom.css" in
+    let bootstrap_url = "https://cdn.jsdelivr.net/npm\
+      /bootstrap@5.2.1/dist/css/bootstrap.min.css"
     in 
-    let hash = "sha384-Gn5384xqQ1aoWXA\
-      +058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
+    let bootstrap_hash ="sha384-iYQeCzEYFbKjA/\
+      T2uDLTpkwGzCiq6soy8tYaI1GyVh/UjpbCx/TYkiZhlZB6+fzT"
     in
     html (head (title (txt str)) [
         meta ~a:[a_charset "utf-8"] ()
@@ -343,103 +398,168 @@ end = struct
           a_name "viewport"
         ; a_content "with=device-width, init-scale=1"
       ] () 
-      ; link ~a:[a_integrity hash; a_crossorigin `Anonymous]
-        ~rel:[`Stylesheet] ~href:css_bootstrap_url ()
+      ; link ~a:[a_integrity bootstrap_hash; a_crossorigin `Anonymous]
+        ~rel:[`Stylesheet] ~href:bootstrap_url ()
       ; link ~rel:[`Stylesheet] ~href:css_custom_path ()
-    ]) (body content) 
+    ]) (body [
+          navbar hcontent
+        ; main content
+        ; footer fcontent
+      ]) 
+
+  let vertical_rule = 
+    let open Tyxml in
+    [%html {eos|<div class="vr"></div>|eos}]
 
   let render_404_not_found request =
-    page_layout ~subtitle:"404 not found" 
-      ~content:[Tyxml.Html.txt "404 not found"]
+    page_layout ~subtitle:"404 not found" [Tyxml.Html.txt "404 not found"] 
     |> html_to_string
 
-  let round_row ~number ~date ~result ~status ~action_button =
+  let check_selector ~number = 
+    let open Tyxml in
+    let num = string_of_int number in
+    let id = "item_" ^ num in
+    [%html
+      "<span>" [Html.txt num] "</span>\
+      <input class=\"form-check-input\" type=\"checkbox\" form=\"action-form\"
+        id="id" />"
+    ]
+
+  let action_form ~actions =
+    let open Tyxml in 
+    [%html {eos| 
+    <form class="row row-cols-lg-auto g-3 align-items-center" 
+      name="action-form">
+      <div class="col-12">
+        <div class="input-group">
+          <select class="form-control" id="action_kind">|eos} 
+            actions
+          {eos|</select> 
+        </div>
+      </div>
+      <div class="col-12">
+        <button class="btn btn-outline-success" type="button">
+          Do
+        </button>
+      </div>
+    </form>|eos} ]
+
+  let round_status (round : Round.t) = 
     let open Tyxml.Html in
+    match round.status with
+    | Pending  -> txt "Pending"
+    | Running _ -> txt "Running"
+    | Done info -> 
+        let link = "show/" ^ info.uuid in 
+        a ~a:[a_href link] [txt "Done"]
+    | Cancelled -> txt "Cancelled"
+
+  let round_provers (round : Round.t) = 
+    let open Tyxml.Html in
+    match round.status with
+    | Pending | Running _ | Cancelled -> txt ""
+    | Done info -> 
+      let pp fmt el = Format.fprintf fmt "%s" el in
+      let provers = List.map fst info.provers |> sprintf_list pp in
+      txt provers 
+
+  let round_uuid (round : Round.t) = 
+    let open Tyxml.Html in
+    match round.status with
+    | Pending | Running _ | Cancelled -> txt ""
+    | Done info -> 
+        txt info.uuid
+  
+  let round_result (round : Round.t) =
+    let open Tyxml.Html in
+    match round.status with
+    | Pending | Running _ -> txt "Not yet"
+    | Done info -> 
+        let str = Format.sprintf "%i/%i" info.ctr_suc_pbs info.ctr_pbs in
+        txt str 
+    | Cancelled -> txt "Cancelled"
+
+  let round_row ~number (round : Round.t) =
+    let open Tyxml.Html in
+    let date = round.date |> format_date in
     tr [
-        td [txt (string_of_int number)]
+        th (check_selector ~number) 
+      ; td [round_provers round] 
+      ; td ~a:[a_class ["text-center"]] [round_uuid round] 
+      ; td ~a:[a_class ["text-center"]] [txt round.config] 
       ; td ~a:[a_class ["text-center"]] [txt date]
-      ; td ~a:[a_class ["text-center"; snd result]] [fst result]
-      ; td ~a:[a_class ["text-center"]] [txt status] 
-      ; td ~a:[a_class ["text-center"]] [action_button] 
+      ; td ~a:[a_class ["text-center"]] [round_result round]
+      ; td ~a:[a_class ["text-center"]] [round_status round] 
     ] 
-
-  let round_result round =
-    let open Tyxml.Html in
-    match Round.status round with
-    | Pending -> Lwt.return (txt "Not yet", "bg-info")
-    | Running -> Lwt.return (txt "Not yet", "bg-info")
-    | Done ->
-        let%lwt nb = Round.nb_tests round in
-        let%lwt nb_successes = Round.nb_successful_tests round in
-        let str = Format.sprintf "%i/%i" nb_successes nb in
-        let color = 
-          if nb_successes = nb then "bg-success"
-          else "bg-danger"
-        in
-        Lwt.return (txt str, color)
-
-  let round_action_button round = 
-    let open Tyxml.Html in
-    let formaction, action, color_button =
-      let digest = Round.digest round in 
-      match Round.status round with
-      | Pending -> 
-          ("cancel/" ^ digest, "Cancel", "btn-warning") 
-      | Running -> 
-          ("stop/" ^ digest, "Stop", "btn-danger")
-      | Done -> 
-          ("show/" ^ digest, "Show", "btn-primary")
-    in
-    button ~a:[
-        a_button_type `Submit
-      ; a_formaction formaction
-      ; a_class ["btn"; color_button]] [txt action] 
 
   let rounds_table rounds =
     let open Tyxml.Html in
-    let%lwt rows = rounds |> Lwt_list.mapi_s (fun i round ->
-      let date = Round.date round in
-      let status, formaction, action, color_button =
-        let digest = Round.digest round in 
-        match Round.status round with
-        | Pending -> 
-            ("Pending", "cancel/" ^ digest, "Cancel", "btn-warning") 
-        | Running -> 
-            ("Running", "stop/" ^ digest, "Stop", "btn-danger")
-        | Done -> 
-            ("Done", "show/" ^ digest, "Show", "btn-primary")
-      in
-      let%lwt result = round_result round in
-      let action_button = round_action_button round in
-      Lwt.return @@ round_row ~number:i ~date ~result ~status ~action_button)
-     in
-    Lwt.return @@ tablex ~a:[a_class ["table"]] 
+    let rows = List.mapi (fun i round ->
+      round_row ~number:i round ) rounds 
+    in
+    tablex ~a:[a_class ["table table-striped table-hover align-middle"]] 
       ~thead:(thead [
         tr [
-          th [txt "#"]
+          th [txt "Select"]
+        ; th [txt "Prover"]
+        ; th ~a:[a_class ["text-center"]] [txt "Uuid"]
+        ; th ~a:[a_class ["text-center"]] [txt "Config"]
         ; th ~a:[a_class ["text-center"]] [txt "Date"]
         ; th ~a:[a_class ["text-center"]] [txt "Result"]
         ; th ~a:[a_class ["text-center"]] [txt "Status"]
-        ; th ~a:[a_class ["text-center"]] [txt "Action"]
       ]
-      ]) [tbody rows] 
+      ]) [tbody ~a:[a_class ["table-group-divider"]] rows] 
 
+  let benchpress_form =
+    let open Tyxml in
+    [%html {eos| 
+    <form class="row row-cols-lg-auto g-2 align-items-center" 
+      method="post" name="benchpress-controller">
+      <div class="col-12">
+        <div class="input-group">
+          <label class="input-group-text" for="config">Prover</label>
+          <select class="form-control mr-sm-2" id="config"> 
+            <option value="default">default</option>
+          </select> 
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="input-group">
+          <label class="input-group-text" for="config">Config</label>
+          <select class="form-control mr-sm-2" id="config"> 
+            <option value="default">default</option>
+          </select> 
+        </div>
+      </div>
+      <div class="col-12">
+        <button class="btn btn-outline-success" type="button">
+          Schedule
+        </button>
+      </div>
+    </form>|eos} ]
+
+  let rounds_action_form =
+    let open Tyxml in 
+    let%html actions = "
+      <option selected hidden>action</option>\
+      <option value='compare'>compare</option> "
+    in
+    action_form ~actions
+    
   let render_rounds_list rounds request =
-    let%lwt rounds_table = rounds_table rounds in
-    let form = Tyxml.Html.( 
-      form ~a:[a_method `Get] [rounds_table]
-    ) in
-    page_layout ~subtitle:"Rounds" ~content:[form] 
+    let rounds_table = rounds_table rounds in
+    page_layout ~subtitle:"Rounds" ~hcontent:
+      [benchpress_form; rounds_action_form] [rounds_table] 
     |> html_to_string
-
+ 
   let problem_row ~number pb =
     let open Tyxml.Html in
     let open Problem in
     tr [
-        th [txt (string_of_int number)]
-      ; td ~a:[a_class ["text-left"]] [txt @@ pb.pb_name]
+        th (check_selector ~number) 
+      ; td [txt @@ pb.pb_name]
       ; td ~a:[a_class ["text-center"]] 
-          [txt @@ string_of_ext pb.ext]
+          [txt @@ string_of_ext pb.pb_ext]
       ; td ~a:[a_class ["text-center"]] 
           [txt @@ string_of_int pb.timeout]
       ; td ~a:[a_class ["text-center"]] 
@@ -454,13 +574,13 @@ end = struct
 
   let problems_table pbs =
     let open Tyxml.Html in
-    let rows = pbs |> List.mapi (fun i pb ->
+    let rows =  List.mapi (fun i pb ->
       problem_row ~number:i pb
-    ) in
-    tablex ~a:[a_class ["table"]] 
+    ) pbs in
+    tablex ~a:[a_class ["table table-striped table-hover align-middle"]] 
       ~thead:(thead [
         tr [
-          th [txt "#"]
+          th [txt "Select"]
         ; th ~a:[a_class ["text-left"]] [txt "Problem"]
         ; th ~a:[a_class ["text-center"]] [txt "Extension"]
         ; th ~a:[a_class ["text-center"]] [txt "Timeout"]
@@ -469,12 +589,72 @@ end = struct
         ; th ~a:[a_class ["text-center"]] [txt "Result"]
         ; th ~a:[a_class ["text-center"]] [txt "Expected"]
       ]
-      ]) [tbody rows] 
+      ]) [tbody ~a:[a_class ["table-group-divider"]] rows] 
 
-  let render_round_detail round request =
-    let%lwt pbs = Round.list_problems round in
+  let round_action_form =
+    let open Tyxml in 
+    let%html actions = "
+      <option selected hidden>action</option>\
+      <option value='compare'>snapshot</option> "
+    in
+    action_form ~actions
+
+  let filter_form = 
+    let open Tyxml in
+    [%html {eos|
+    <form class="row row-cols-lg-auto g-3 align-items-center" method="get">
+      <div class="col-12">
+          <div class="input-group">
+            <label class="input-group-text">Problem</label>
+            <input type="text" class="form-control" placeholder="..."/>
+          </div>
+      </div>
+      <div class="col-12">
+        <div class="input-group">
+          <label class="input-group-text" for="error_code">Error code</label>
+          <select class="form-control" id="error_code">
+            <option value="any" selected>any</option>
+            <option value="0">0</option>
+            <option value="1">1</option>
+            <option value="123">123</option>
+          </select>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="input-group">
+          <label class="input-group-text" for="res">Result</label>
+          <select class="form-control" id="res">
+            <option value="any" selected>any</option>
+            <option value="unsat">unsat</option>
+            <option value="sat">sat</option>
+            <option value="unknown">unknown</option>
+            <option value="error">error</option>
+          </select>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="input-group">
+          <label class="input-group-text" for="expected_res">Expected</label>
+          <select class="form-control" id="expected_res">
+            <option value="any" selected>any</option>
+            <option value="unsat">unsat</option>
+            <option value="sat">sat</option>
+            <option value="unknown">unknown</option>
+            <option value="error">error</option>
+          </select>
+        </div>
+      </div>
+      <div class="col-12">
+        <button class="btn btn-outline-success" type="button">
+          Filter
+        </button>
+      </div>
+    </form>|eos} ]
+ 
+  let render_round_detail pbs request =
     let table = problems_table pbs in
-    page_layout ~subtitle:"Round" ~content:[table]
+    page_layout ~subtitle:"Round" ~hcontent:
+      [filter_form; vertical_rule; round_action_form] [table]
     |> html_to_string 
 
   let render_problem_detail pb request = 
@@ -482,27 +662,39 @@ end = struct
 end
 
 module Handlers : sig
-  val handle_rounds_list : Round.t list ref -> Dream.handler
-  val handle_round_detail : Round.t list ref -> Dream.handler
+  val handle_rounds_list : Round.t list Lwt.t ref -> Dream.handler
+  val handle_round_detail : Round.t list Lwt.t ref -> Dream.handler
 end = struct 
   let handle_rounds_list rounds request = 
-    let%lwt html = Views.render_rounds_list !rounds request in
+    let%lwt rounds = !rounds in 
+    let html = Views.render_rounds_list rounds request in
     Dream.html html
 
-  let handle_round_detail rounds request =
-    let digest = Dream.param request "digest" in
-    let%lwt response = match List.find_opt (fun round -> 
-      Digest.equal (Round.digest round) digest
-    ) !rounds with
+  let handle_round_detail rounds request = 
+    let uuid = Dream.param request "uuid" in
+    let%lwt rounds = !rounds in 
+    match List.find_opt (fun (round : Round.t) ->
+      match round.status with 
+      | Pending | Running _ | Cancelled -> false
+      | Done info -> String.equal info.uuid uuid
+    ) rounds with
     | Some round ->
-      Views.render_round_detail round request 
+        let%lwt pbs = Round.problems round in
+        Views.render_round_detail pbs request |> Dream.html 
     | None -> 
-      Views.render_404_not_found request
-    in
-    Dream.html response
+        Views.render_404_not_found request |> Dream.html
 end
 
 module File = struct
+  let cat fmt fl =
+    let ch = open_in fl in
+    try while true do
+      let s = input_line ch in
+      Format.fprintf fmt "%s@\n" s
+    done
+    with End_of_file ->
+    Format.fprintf fmt "@."
+
   let readdir ?ext_filter path =     
     let apply_filter = 
       match ext_filter with
@@ -515,11 +707,11 @@ module File = struct
 end
 
 let () =
-  let resurected_rounds =  
+  let resurected_rounds : Round.t list Lwt.t =  
     File.readdir 
       ~ext_filter:(fun str -> String.equal str ".sqlite") 
       benchpress_share_dir 
-    |> List.map (fun db_file -> Round.resurect ~db_file) 
+    |> Lwt_list.map_s (fun db_file -> Round.resurect ~db_file) 
   in
   let rounds = ref resurected_rounds in
   Dream.run 
@@ -528,5 +720,5 @@ let () =
   @@ Dream.router [
       Dream.get "/css/**" @@ Dream.static (List.hd Location.Sites.css)
     ; Dream.get "/" @@ Handlers.handle_rounds_list rounds
-    ; Dream.get "/show/:digest" @@ Handlers.handle_round_detail rounds
+    ; Dream.get "/show/:uuid" @@ Handlers.handle_round_detail rounds
   ] 
