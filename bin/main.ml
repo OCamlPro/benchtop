@@ -160,17 +160,40 @@ end = struct
 end
 
 module Request : sig 
-  type 'a request = (module Caqti_lwt.CONNECTION) -> 
-    ('a, string) Lwt_result.t
+  type 'a request 
+  type 'a answer = ('a, Caqti_error.t) Lwt_result.t
+
+  val exec : db_file:string -> 'a request -> 'a answer
+  val (@) : 'a request -> 'b request -> ('a * 'b) request
+  val debug : 'a answer -> ('a, string) Lwt_result.t
 
   val round_info : Round_info.t request
-
   val select_problems : Problem.t list request
-
+  val provers : (string * string) list request
   val set_wal : unit request
 end = struct
-  type 'a request = (module Caqti_lwt.CONNECTION) -> 
-    ('a, string) Lwt_result.t
+  type 'a answer = ('a, Caqti_error.t) Lwt_result.t
+  type 'a request = (module Caqti_lwt.CONNECTION) -> 'a answer
+
+  let exec ~db_file req = 
+    let db_uri = 
+      "sqlite3://" ^ Filename.concat benchpress_share_dir db_file 
+      |> Uri.of_string
+    in
+    Lwt_result.bind (Caqti_lwt.connect db_uri) req
+
+  let debug ans = 
+    Lwt_result.bind_lwt_error ans (fun err -> 
+      let msg = Format.asprintf "%a" Caqti_error.pp err in
+      Dream.log "%s" msg;
+      Lwt.return msg
+    )
+
+  let (@) req1 req2 db =
+    Lwt_result.bind (req1 db) (fun res1 ->
+      match%lwt req2 db with
+      | Ok res2 -> Lwt_result.return (res1, res2)
+      | Error err -> Lwt_result.fail err)
 
   module Query_strings = struct
     open Caqti_request.Infix
@@ -219,65 +242,30 @@ end = struct
         FROM prover
       |eos}
 
-    let count_tests =
-      unit ->! int @@
-      {eos|
-        SELECT
-          COUNT(file)
-        FROM prover_res
-      |eos}
-
-    let count_successful_tests =
-      unit ->! int @@
-      {eos|
-        SELECT
-          COUNT(file)
-        FROM prover_res
-        WHERE res = file_expect
-      |eos}
-
     let set_wal = 
       unit ->. unit @@
       "PRAGMA journal_mode=WAL"
   end
 
   let round_info (module Db : Caqti_lwt.CONNECTION) =
-    Lwt_result.bind_lwt_error (
-      Lwt_result.bind (Db.find Query_strings.meta_info ())
+    Lwt_result.bind (Db.find Query_strings.meta_info ())
       (fun (uuid, timestamp, ctr_pbs, ctr_suc_pbs) ->
         Lwt_result.bind_result (Db.collect_list Query_strings.provers ())
         (fun provers ->
           let round_info = Round_info.make 
             ~provers ~uuid ~timestamp ~ctr_pbs ~ctr_suc_pbs
           in 
-          Ok round_info)))
-      (fun err ->
-        Dream.log "%a" Caqti_error.pp err;
-        Lwt.return "Cannot get the round informations")
-
+          Ok round_info))
+  
   let select_problems (module Db : Caqti_lwt.CONNECTION) =
-    Lwt_result.bind_lwt_error ( 
-      Db.collect_list Query_strings.select_problems ())
-      (fun err -> 
-        Dream.log "%a" Caqti_error.pp err;
-        Lwt.return "Cannot get the list of problems")
+    Db.collect_list Query_strings.select_problems ()
+
+  let provers (module Db : Caqti_lwt.CONNECTION) = 
+    Db.collect_list Query_strings.provers () 
 
   let set_wal (module Db : Caqti_lwt.CONNECTION) =
-    Lwt_result.bind_lwt_error (
-      Db.exec Query_strings.set_wal ())
-      (fun err ->
-        Dream.log "%a" Caqti_error.pp err;
-        Lwt.return "Cannot set WAL mode on")
+      Db.exec Query_strings.set_wal ()
 end
-
-let connect db_file = 
-  let db_uri = 
-    "sqlite3://" ^ Filename.concat benchpress_share_dir db_file 
-    |> Uri.of_string
-  in
-  Lwt_result.bind_lwt_error (Caqti_lwt.connect db_uri) (fun err ->
-    Lwt.return @@ Format.asprintf "%a" Caqti_error.pp err
-  )
 
 module Round : sig 
   type t
@@ -360,7 +348,8 @@ end = struct
     Lwt.return (Dead rc)
 
   let retrieve_info db_file =
-    Lwt_result.bind (connect db_file) Request.round_info
+    Request.exec ~db_file Request.round_info
+    |> Request.debug
 
   let resurect ~db_file = 
     let round = make () in
@@ -442,8 +431,9 @@ end = struct
   let problems round =
     match status round with
     | Running {db_file; info; _} | Done {db_file; info; _} -> 
-      Lwt_result.bind (connect db_file) (Request.select_problems) 
-    | Pending | Cancelled -> Lwt_result.fail "No problem list available."
+        Request.exec ~db_file Request.select_problems 
+        |> Request.debug
+    | Pending | Cancelled -> Lwt_result.fail "No problem list available"
 end 
 
 module Views : sig
@@ -808,7 +798,7 @@ let resurected_rounds () =
     |> Lwt_list.map_s (fun db_file -> 
         match%lwt Round.resurect ~db_file with
         | Ok round -> Lwt.return round
-        | Error _ -> failwith "Cannot restore previous rounds.")
+        | Error err -> failwith "Cannot restore previous rounds.")
   in
   Lwt.return @@ ref (List.sort Round.compare rounds)
 
