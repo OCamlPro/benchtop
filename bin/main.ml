@@ -170,14 +170,14 @@ module Request : sig
   val round_info : Round_info.t request
   val select_problems : Problem.t list request
   val provers : (string * string) list request
-  val set_wal : unit request
+  val set_wal : int request
 end = struct
   type 'a answer = ('a, Caqti_error.t) Lwt_result.t
   type 'a request = (module Caqti_lwt.CONNECTION) -> 'a answer
 
   let exec ~db_file req = 
     let db_uri = 
-      "sqlite3://" ^ Filename.concat benchpress_share_dir db_file ^ "?mode=ro&nolock=1"
+      "sqlite3://" ^ Filename.concat benchpress_share_dir db_file 
       |> Uri.of_string
     in
     Lwt_result.bind (Caqti_lwt.connect db_uri) req
@@ -185,7 +185,7 @@ end = struct
   let debug ans = 
     Lwt_result.bind_lwt_error ans (fun err -> 
       let msg = Format.asprintf "%a" Caqti_error.pp err in
-      Dream.log "%s" msg;
+      Dream.error (fun log -> log "%s" msg);
       Lwt.return msg
     )
 
@@ -243,8 +243,8 @@ end = struct
       |eos}
 
     let set_wal = 
-      unit ->. unit @@
-      "PRAGMA journal_mode=WAL"
+      unit ->! int @@
+      "PRAGMA busy_timeout = 5000"
   end
 
   let round_info (module Db : Caqti_lwt.CONNECTION) =
@@ -264,7 +264,7 @@ end = struct
     Db.collect_list Query_strings.provers () 
 
   let set_wal (module Db : Caqti_lwt.CONNECTION) =
-      Db.exec Query_strings.set_wal ()
+    Db.find Query_strings.set_wal ()
 end
 
 module Round : sig 
@@ -347,12 +347,12 @@ end = struct
     Lwt.return (Dead rc)
 
   let retrieve_info db_file =
-    Request.exec ~db_file Request.round_info
+    Request.exec ~db_file Request.(set_wal @ round_info)
     |> Request.debug
 
   let resurect ~db_file = 
     let round = make () in
-    Lwt_result.bind_lwt (retrieve_info db_file) (fun info ->
+    Lwt_result.bind_lwt (retrieve_info db_file) (fun (_, info) ->
       Lwt.return { round with status = Done {db_file; info; proc = None} })
 
   let create_process =
@@ -381,7 +381,7 @@ end = struct
       match%lwt Lwt.choose [wait_db_file inotify; wait_terminate proc] with
       | Found_db db_file -> 
           Dream.info (fun log -> log "Found the database %s" db_file);
-          Lwt_result.bind_lwt (retrieve_info db_file) (fun info ->
+          Lwt_result.bind_lwt (retrieve_info db_file) (fun (_, info) ->
             let status = Running { db_file; info; proc = None } in
             Lwt.return {round with status}
           )
@@ -399,7 +399,7 @@ end = struct
   let update round = 
     match status round with
     | Running ({db_file; proc = Some proc; _ } as data) -> 
-        Lwt_result.bind_result (retrieve_info db_file) (fun info ->
+        Lwt_result.bind_result (retrieve_info db_file) (fun (_, info) ->
           match proc#state with
           | Lwt_process.Running -> 
               Ok {round with status = Running {data with info}}
@@ -707,55 +707,36 @@ end = struct
 
   let filter_form = 
     let open Tyxml in
-    [%html {eos|
-    <form class="row row-cols-lg-auto g-3 align-items-center" method="get">
-      <div class="col-12">
-          <div class="input-group">
-            <label class="input-group-text">Problem</label>
-            <input type="text" class="form-control" placeholder="..."/>
-          </div>
-      </div>
-      <div class="col-12">
-        <div class="input-group">
-          <label class="input-group-text" for="error_code">Error code</label>
-          <select class="form-control" id="error_code">
-            <option value="any" selected>any</option>
-            <option value="0">0</option>
-            <option value="1">1</option>
-            <option value="123">123</option>
-          </select>
-        </div>
-      </div>
-      <div class="col-12">
-        <div class="input-group">
-          <label class="input-group-text" for="res">Result</label>
-          <select class="form-control" id="res">
-            <option value="any" selected>any</option>
-            <option value="unsat">unsat</option>
-            <option value="sat">sat</option>
-            <option value="unknown">unknown</option>
-            <option value="error">error</option>
-          </select>
-        </div>
-      </div>
-      <div class="col-12">
-        <div class="input-group">
-          <label class="input-group-text" for="expected_res">Expected</label>
-          <select class="form-control" id="expected_res">
-            <option value="any" selected>any</option>
-            <option value="unsat">unsat</option>
-            <option value="sat">sat</option>
-            <option value="unknown">unknown</option>
-            <option value="error">error</option>
-          </select>
-        </div>
-      </div>
-      <div class="col-12">
-        <button class="btn btn-outline-success" type="submit">
-          Filter
-        </button>
-      </div>
-    </form>|eos} ]
+    [%html "
+    <form class='row row-cols-lg-auto g-3 align-items-center' method='get'>\
+      <div class='col-12'>\
+          <div class='input-group'>\
+            <label class='input-group-text'>Problem</label>\
+            <input type='text' class='form-control' placeholder='...'/>\
+          </div>\
+      </div>\
+      <div class='col-12'>\
+      " [selector ~id:"error_code" ~label:"Error code" ~placeholder:"any" [
+          ("0", "0"); ("<> 0", "<> 0"); ("1", "1"); ("123", "123")
+        ]] "
+     </div>\
+     <div class='col-12'>\
+      " [selector ~id:"res" ~label:"Result" ~placeholder:"any" [
+          ("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown"); ("error", "error")
+        ]] "
+     </div>\
+     <div class='col-12'>\
+      " [selector ~id:"expected_res" ~label:"Expected" ~placeholder:"any" [
+          ("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown"); ("error", "error")
+        ]] "
+     </div>\
+     <div class='col-12'>\
+        <button class='btn btn-outline-success' type='submit'>\
+          Filter\
+        </button>\
+      </div>\
+    </form>\
+    "]
  
   let render_round_detail pbs request =
     let table = problems_table pbs in
