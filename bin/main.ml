@@ -177,7 +177,7 @@ end = struct
 
   let exec ~db_file req = 
     let db_uri = 
-      "sqlite3://" ^ Filename.concat benchpress_share_dir db_file 
+      "sqlite3://" ^ Filename.concat benchpress_share_dir db_file ^ "?mode=ro&nolock=1"
       |> Uri.of_string
     in
     Lwt_result.bind (Caqti_lwt.connect db_uri) req
@@ -339,7 +339,6 @@ end = struct
     fun inotify ->
     match%lwt Lwt_inotify.read inotify with
       | (_, [Inotify.Create], _, Some file) when is_db file -> 
-          Dream.log "%s" file;
           Lwt.return (Found_db file)
       | _ -> wait_db_file inotify
 
@@ -376,12 +375,12 @@ end = struct
       let%lwt inotify = Lwt_inotify.create () in
       let%lwt _ = Lwt_inotify.add_watch inotify benchpress_share_dir 
         [Inotify.S_Create] in
-      Dream.log "Ready to benchpress@.";
+      Dream.info (fun log -> log "Ready to run benchpress");
       let proc, stdout_ch, stderr_ch = create_process round.cmd in
-      Dream.log "Running benchpress@.";
+      Dream.info (fun log -> log "Running benchpress");
       match%lwt Lwt.choose [wait_db_file inotify; wait_terminate proc] with
       | Found_db db_file -> 
-          Dream.log "Found db: %s@." db_file;
+          Dream.info (fun log -> log "Found the database %s" db_file);
           Lwt_result.bind_lwt (retrieve_info db_file) (fun info ->
             let status = Running { db_file; info; proc = None } in
             Lwt.return {round with status}
@@ -806,7 +805,6 @@ let ugly res tl =
   match%lwt res with
   | Ok res -> Lwt.return (res :: tl)
   | Error str ->
-      Dream.log "%s" str;
       Lwt.return tl
 
 module Handlers : sig
@@ -863,7 +861,8 @@ end = struct
     | _ -> Dream.empty `Bad_Request
 end
 
-let () =
+let () = 
+  Dream.initialize_log ~level:`Debug ();
   let ctx = resurected_rounds () in
   Dream.run 
   @@ Dream.logger
