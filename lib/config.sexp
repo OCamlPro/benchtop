@@ -6,7 +6,7 @@
   (unsat ":status valid"))
 
 (dir
-  (path "tests")
+  (path "lib/tests")
   (pattern ".*.ae|.*.smt2")
   (expect (run ae-read-status)))
 

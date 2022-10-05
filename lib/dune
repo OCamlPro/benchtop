@@ -7,6 +7,6 @@
   (module location)
   (sites benchtop))
 
-(install
+(install 
   (section share)
   (files config.sexp))

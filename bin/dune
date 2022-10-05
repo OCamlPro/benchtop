@@ -1,5 +1,5 @@
 (executable
  (public_name benchtop)
  (name main)
- (libraries benchtop caqti caqti-lwt caqti-driver-sqlite3 dream lwt tyxml)
+ (libraries benchtop caqti caqti-lwt caqti-driver-sqlite3 dream lwt tyxml inotify.lwt)
  (preprocess (pps lwt_ppx tyxml-ppx)))
