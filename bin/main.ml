@@ -460,16 +460,21 @@ end = struct
     Format.pp_print_list ~pp_sep pp fmt lst;
     Buffer.to_seq buf |> String.of_seq
 
+  let csrf_tag request =
+    let open Tyxml in
+    let token = Dream.csrf_token request in
+    [%html "<input name='dream.csrf' type='hidden' value='" token "'/>"]
+
   let navbar content = 
     let open Tyxml in
-    [%html
-      "<header class=\"navbar bg-light sticky-top\">\
-        <div class=\"container-fluid\">\
-          <a class=\"navbar-brand text-primary\" href=\"#\">Benchtop</a>"
+    [%html "
+      <header class='navbar bg-light sticky-top'>\
+        <div class='container-fluid'>\
+          <a class='navbar-brand text-primary' href='#'>Benchtop</a>"
           content  
         "</div>\
-      </header>"
-    ]
+      </header>
+    "]
 
   let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
     let open Tyxml.Html in
@@ -515,51 +520,65 @@ end = struct
         id='"id"'/>
     "]
 
-  let selector ~id ~label ?default_option ?placeholder options = 
-    let open Tyxml in
-    let options = List.map (fun (key, value) -> 
-      Html.(option ~a:[a_value value] (txt key))
-    ) options in
-    let options = 
-      match default_option with
-      | Some (key, value) -> 
-          Html.(option ~a:[a_value value; a_selected ()] (txt key))
-            :: options 
-      | None -> options
-    in
-    let options = 
-      match placeholder with
-      | Some placeholder -> 
-          Html.(option ~a:[a_hidden (); a_selected ()] 
-            (txt placeholder)) :: options 
-      | None -> options
-    in
-    [%html "
-      <div class='input-group'>\
-        <label class='input-group-text' for='"id"'>\
-          " [Html.txt label] "        
-        </label>\
-        <select class='form-control mr-sm-2' id='"id"'>\
-          " options "\
-        </select>\
-      </div>\
-    "]
+  module Selector = struct 
+    type default_option = 
+      | Default_value of {key: string; value: string}
+      | Placeholder of string
+      | None
 
-  let action_form ~actions =
+    let make ~id ~label ?(default_option=None) ?current options = 
+      let open Tyxml in
+      let options = List.map (fun (key1, value) -> 
+        let attributs = match current with
+        | Some key2 when String.equal key1 key2 -> 
+            Html.[a_value value; a_selected ()]
+        | Some _ | None -> 
+            Html.[a_value value]
+        in
+        Html.(option ~a:attributs (txt key1))
+      ) options in
+      let options =
+        let selected_default = match current with
+        | Some _ -> []
+        | None -> [Html.a_selected ()] 
+        in
+        match default_option with
+        | Default_value {key; value} -> 
+            Html.(option ~a:(a_value value :: selected_default) (txt key))
+              :: options 
+        | Placeholder key -> 
+            Html.(option ~a:(a_hidden () :: selected_default) 
+              (txt key)) :: options 
+        | None -> options
+      in
+      [%html "
+        <div class='input-group'>\
+          <label class='input-group-text' for='"id"'>\
+            " [Html.txt label] "\        
+          </label>\
+          <select class='form-control mr-sm-2' id='"id"' name='"id"'>\
+            " options "\
+          </select>\
+        </div>\
+      "]
+  end
+
+  let action_form request ~actions =
     let open Tyxml in 
     [%html " 
-    <form class='row row-cols-lg-auto g-3 align-items-center'\ 
-      name='action-form'>\
-      <div class='col-12'>\
-        " [selector ~id:"action_kind" ~label:"Action" 
-            ~placeholder:"..." actions] "
-      </div>\
-      <div class='col-12'>\
-        <button class='btn btn-outline-success' type='button'>\
-          Do\
-        </button>\
-      </div>\
-    </form>\
+      <form class='row row-cols-lg-auto g-3 align-items-center'\ 
+        name='action-form' method='post'>\
+        " [csrf_tag request] "
+        <div class='col-12'>\
+          " [Selector.make ~id:"action_kind" ~label:"Action" 
+              ~default_option:(Placeholder "...") actions] "
+        </div>\
+        <div class='col-12'>\
+          <button class='btn btn-outline-success' type='submit'>\
+            Do\
+          </button>\
+        </div>\
+      </form>\
     "]
 
   let round_status (round : Round.t) = 
@@ -627,11 +646,6 @@ end = struct
       ]
       ]) [tbody ~a:[a_class ["table-group-divider"]] rows] 
 
-  let csrf_tag request =
-    let open Tyxml in
-    let token = Dream.csrf_token request in
-    [%html "<input name='dream.csrf' type='hidden' value='" token "'/>"]
-
   let benchpress_form request =
     let open Tyxml in
     [%html " 
@@ -639,12 +653,14 @@ end = struct
       method='post' name='benchpress-controller' action='/schedule'>\
       " [csrf_tag request] "
       <div class='col-12'>\
-        " [selector ~id:"prover" ~label:"Prover" 
-            ~default_option:("default", "default") []] "
+        " [Selector.make ~id:"prover" ~label:"Prover" 
+            ~default_option:(Default_value {key="default"; value="default"}) 
+            []] "
       </div>\
       <div class='col-12'>\
-        " [selector ~id:"config" ~label:"Config" 
-            ~default_option:("default", "default") []] "
+        " [Selector.make ~id:"config" ~label:"Config" 
+            ~default_option:(Default_value {key="default"; value="default"})
+            []] "
       </div>\
       <div class='col-12'>\
         <button class='btn btn-outline-success' type='submit'>\
@@ -655,13 +671,19 @@ end = struct
     "]
 
   let rounds_action_form request =
-    action_form ~actions:[("compare", "Compare")]
+    action_form request ~actions:[("compare", "Compare")]
     
   let render_rounds_list rounds request =
     let rounds_table = rounds_table rounds in
     page_layout ~subtitle:"Rounds" ~hcontent:
       [benchpress_form request; rounds_action_form request] [rounds_table] 
     |> html_to_string
+
+  let color_of_result = function
+    | Sat -> ["text-success"]
+    | Unsat -> ["text-primary"]
+    | Unknown -> ["text-orange"]
+    | Error -> ["text-danger"]
  
   let problem_row ~number pb =
     let open Tyxml.Html in
@@ -677,9 +699,9 @@ end = struct
           [txt @@ string_of_int @@ int_of_error_code pb.error_code]
       ; td ~a:[a_class ["text-center"]] 
           [txt @@ string_of_float pb.rtime]
-      ; td ~a:[a_class ["text-center"]] 
+      ; td ~a:[a_class (["text-center"] @ color_of_result pb.res)] 
           [txt @@ string_of_result pb.res]
-      ; td ~a:[a_class ["text-center"]] 
+      ; td ~a:[a_class (["text-center"] @ color_of_result pb.expected_res)] 
           [txt @@ string_of_result pb.expected_res]
     ]
 
@@ -705,29 +727,43 @@ end = struct
   let round_action_form =
     action_form ~actions:[("snapshot", "Snapshot")]
 
-  let filter_form = 
+  let filter_form request = 
     let open Tyxml in
     [%html "
-    <form class='row row-cols-lg-auto g-3 align-items-center' method='get'>\
+    <form class='row row-cols-lg-auto g-3 align-items-center' method='get' \
+      >\
+      <div class='form-check form-switch'>\
+        <input class='form-check-input' type='checkbox' role='switch' 
+          id='switch-diff'>\
+        <label class='form-check-label' for='switch-diff'>\
+          Diff\
+        </label>\
+      </div>
       <div class='col-12'>\
           <div class='input-group'>\
             <label class='input-group-text'>Problem</label>\
-            <input type='text' class='form-control' placeholder='...'/>\
+            <input type='text' class='form-control' name='problem' \
+              placeholder='...'/>\
           </div>\
       </div>\
       <div class='col-12'>\
-      " [selector ~id:"error_code" ~label:"Error code" ~placeholder:"any" [
+      " [Selector.make ~id:"error_code" ~label:"Error code" 
+          ~default_option:(Default_value {key="any"; value="any"}) [
           ("0", "0"); ("<> 0", "<> 0"); ("1", "1"); ("123", "123")
         ]] "
      </div>\
      <div class='col-12'>\
-      " [selector ~id:"res" ~label:"Result" ~placeholder:"any" [
-          ("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown"); ("error", "error")
+      " [Selector.make ~id:"res" ~label:"Result"
+          ~default_option:(Default_value {key="any"; value="any"}) [
+          ("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown"); 
+          ("error", "error")
         ]] "
-     </div>\
+     </div>\ 
      <div class='col-12'>\
-      " [selector ~id:"expected_res" ~label:"Expected" ~placeholder:"any" [
-          ("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown"); ("error", "error")
+      " [Selector.make ~id:"expected_res" ~label:"Expected"
+          ~default_option:(Default_value {key="any"; value="any"}) [
+          ("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown"); 
+          ("error", "error")
         ]] "
      </div>\
      <div class='col-12'>\
@@ -741,7 +777,7 @@ end = struct
   let render_round_detail pbs request =
     let table = problems_table pbs in
     page_layout ~subtitle:"Round" ~hcontent:
-      [filter_form; vertical_rule; round_action_form] [table]
+      [filter_form request; vertical_rule; round_action_form request] [table]
     |> html_to_string 
 
   let render_problem_detail pb request = 
