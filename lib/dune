@@ -1,7 +1,8 @@
 (library
  (name benchtop)
- (modules location)
- (libraries dune-site))
+ (modules location views error process handlers file models round rounds_queue sql options)
+ (libraries dune-site caqti caqti-lwt caqti-driver-sqlite3 dream lwt tyxml inotify.lwt)
+ (preprocess (pps lwt_ppx tyxml-ppx)))
 
 (generate_sites_module
   (module location)
