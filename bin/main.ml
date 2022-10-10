@@ -267,70 +267,34 @@ end = struct
     Db.find Query_strings.set_wal ()
 end
 
-module Round : sig 
+type process_error = [
+  | `Stopped of Unix.process_status
+  | `Db_not_found of Unix.process_status 
+]
+
+type round_error = [
+  | `Cannot_retrieve_info of string
+  | `Not_done
+]
+
+type error = [ Caqti_error.t | process_error | round_error ]
+
+module Process : sig 
   type t
   
-  type data = {
-    db_file: string;
-    proc: Lwt_process.process_none option;
-    info: Round_info.t
-  }
-
-  type status =  
-    | Pending     
-    | Running of data 
-    | Done of data 
-    | Cancelled 
-
-  val make : unit -> t
-  val resurect : db_file: string -> (t, string) Lwt_result.t
-  val run : t -> (t, string) Lwt_result.t
-  val update : t -> (t, string) Lwt_result.t
-  val cancel : t -> t 
-  val compare : t -> t -> int
-
-  val config: t -> string
-  val date : t -> Unix.tm
-  val status : t -> status
-  val problems : t -> (Problem.t list, string) Lwt_result.t 
-end = struct 
-  type data = {
-    db_file: string;
-    proc: Lwt_process.process_none option;
-    info: Round_info.t
-  }
-
-  type status = 
-    | Pending 
-    | Running of data
-    | Done of data
-    | Cancelled 
-
+  val run : cmd:Lwt_process.command -> config:string -> 
+    (t, error) Lwt_result.t
+  val stop : t -> Unix.process_status Lwt.t
+  val is_done : t -> bool 
+  val db_file : t -> string
+end = struct
   type t = {
-    cmd: Lwt_process.command;
-    config: string;
-    pending_at: Unix.tm;
-    status: status
+    inotify: Lwt_inotify.t;
+    handler: Lwt_process.process_none;
+    stdout: in_channel;
+    stderr: in_channel;
+    db_file: string;
   }
-
-  let config round = round.config
-  let status round = round.status
-  let date round = 
-    match status round with 
-    | Pending -> round.pending_at
-    | Cancelled -> round.pending_at
-    | Running {info; _} | Done {info; _} -> info.running_at 
-  
-  let make () =
-    let config_path = "config.sexp" in {
-      cmd = ("benchpress", [|"benchpress"; "run"; "-c"; 
-        "lib/config.sexp"; "-p"; "alt-ergo"; "lib/tests"|]);
-      config = "default";
-      pending_at = Unix.time () |> Unix.localtime;
-      status = Pending 
-  }
-
-  type res = Found_db of string | Dead of Unix.process_status
 
   let rec wait_db_file =
     let is_db file = 
@@ -339,100 +303,193 @@ end = struct
     fun inotify ->
     match%lwt Lwt_inotify.read inotify with
       | (_, [Inotify.Create], _, Some file) when is_db file -> 
-          Lwt.return (Found_db file)
+          Lwt_result.return file
       | _ -> wait_db_file inotify
 
-  let wait_terminate proc = 
-    let%lwt rc = proc#status in
-    Lwt.return (Dead rc)
+  let wait_terminate handler = 
+    let%lwt rc = handler#status in
+    Lwt_result.fail rc
+
+  let create_temp_file suffix =
+    let file = Filename.temp_file "benchpress" suffix in
+    let fd = Unix.openfile file [O_RDWR] 0o640 in
+    (fd, Unix.in_channel_of_descr fd)
+
+  let run ~cmd ~config =
+    let%lwt inotify = Lwt_inotify.create () in
+    let%lwt _ = 
+      Lwt_inotify.add_watch inotify benchpress_share_dir 
+        [Inotify.S_Create] 
+    in
+    let stdout_fd, stdout = create_temp_file "stdout" in 
+    let stderr_fd, stderr = create_temp_file "stderr" in 
+    Dream.info (fun log -> log "Ready to run benchpress");
+    let handler = Lwt_process.open_process_none ~stdout:(`FD_copy stdout_fd) 
+      ~stderr:(`FD_copy stderr_fd) cmd in
+    Dream.info (fun log -> log "Running benchpress");
+    match%lwt Lwt.choose [wait_db_file inotify; 
+        wait_terminate handler] with
+      | Ok db_file -> 
+          Dream.info (fun log -> log "Found the database %s" db_file);
+          Lwt_result.return {inotify; stdout; stderr; handler; db_file}
+      | Error rc ->
+          Dream.error (fun log -> log "Cannot found the database");
+          Dream.log "%s" (File.read_all stdout);
+          Lwt_result.fail (`Db_not_found rc) 
+
+  let stop {handler; _} = handler#status
+  
+  let is_done {handler; _} =
+    match handler#state with
+    | Running -> false
+    | Exited _ -> true 
+
+  let db_file {db_file; _} = db_file
+end
+
+module Round : sig 
+  type status = 
+    | Pending of (Process.t, error) Lwt_result.t Lazy.t 
+    | Running of Process.t 
+    | Failed of error
+    | Done of {db_file: string; info: Round_info.t}
+  
+  type t = private {
+    config: string;
+    date: Unix.tm;
+    status: status
+  }
+
+  val make : cmd:Lwt_process.command -> config:string -> t
+  val resurect : db_file:string -> t Lwt.t
+  val run : t -> t Lwt.t 
+  val update : t -> t Lwt.t
+  val stop : t -> t Lwt.t
+  val is_done : t -> bool
+
+  val problems : t -> (Problem.t list, string) Lwt_result.t
+end = struct
+  type status = 
+    | Pending of (Process.t, error) Lwt_result.t Lazy.t 
+    | Running of Process.t 
+    | Failed of error
+    | Done of {db_file: string; info: Round_info.t}
+  
+  type t = {
+    config: string;
+    date: Unix.tm;
+    status: status
+  }
+
+  let now () = Unix.time () |> Unix.localtime
+
+  let make ~cmd ~config = 
+    let status = Pending (lazy (Process.run ~cmd ~config)) in
+    {config; date = now (); status} 
 
   let retrieve_info db_file =
-    Request.exec ~db_file Request.(set_wal @ round_info)
-    |> Request.debug
-
-  let resurect ~db_file = 
-    let round = make () in
-    Lwt_result.bind_lwt (retrieve_info db_file) (fun (_, info) ->
-      Lwt.return { round with status = Done {db_file; info; proc = None} })
-
-  let create_process =
-    let create_temp_file () =
-      let file = Filename.temp_file "benchpress" "toto" in
-      Unix.openfile file [O_RDWR] 0o640 
+    let request = 
+      Request.exec ~db_file Request.round_info
+      |> Request.debug
     in
-    fun cmd ->
-    let stdout_fd = create_temp_file () in 
-    let stderr_fd = create_temp_file () in 
-    let proc = Lwt_process.open_process_none ~stdout:(`FD_copy stdout_fd) 
-      ~stderr:(`FD_copy stderr_fd) cmd in
-    (proc, 
-      Unix.in_channel_of_descr stdout_fd, 
-      Unix.in_channel_of_descr stderr_fd)
+    let%lwt date, status = match%lwt request with 
+    | Ok info -> Lwt.return (info.running_at, Done {db_file; info})
+    | Error err -> Lwt.return (now (), Failed (`Cannot_retrieve_info err))
+    in
+    Lwt.return {config = "default"; date; status}
+
+  let resurect ~db_file = retrieve_info db_file
 
   let run round = 
-    match status round with
-    | Pending -> begin
-      let%lwt inotify = Lwt_inotify.create () in
-      let%lwt _ = Lwt_inotify.add_watch inotify benchpress_share_dir 
-        [Inotify.S_Create] in
-      Dream.info (fun log -> log "Ready to run benchpress");
-      let proc, stdout_ch, stderr_ch = create_process round.cmd in
-      Dream.info (fun log -> log "Running benchpress");
-      match%lwt Lwt.choose [wait_db_file inotify; wait_terminate proc] with
-      | Found_db db_file -> 
-          Dream.info (fun log -> log "Found the database %s" db_file);
-          Lwt_result.bind_lwt (retrieve_info db_file) (fun (_, info) ->
-            let status = Running { db_file; info; proc = None } in
-            Lwt.return {round with status}
-          )
-      | Dead rc ->
-          Dream.log "%s" (File.read_all stdout_ch);
-          (match rc with
-          | Unix.WEXITED i -> Dream.log "WEXITED: %i" i 
-          | Unix.WSIGNALED i -> Dream.log "WSIGNALED: %i" i 
-          | Unix.WSTOPPED i -> Dream.log "WSTOPPED: %i" i);
-          Lwt_result.return { round with status = Cancelled }
-      end
-    | Running _ | Done _ | Cancelled -> 
-        Lwt_result.return round 
-
-  let update round = 
-    match status round with
-    | Running ({db_file; proc = Some proc; _ } as data) -> 
-        Lwt_result.bind_result (retrieve_info db_file) (fun (_, info) ->
-          match proc#state with
-          | Lwt_process.Running -> 
-              Ok {round with status = Running {data with info}}
-          | Lwt_process.Exited rc -> 
-              match rc with
-              | WEXITED 0 -> 
-                  Ok {round with status = Done {data with info}}
-              | WEXITED i | WSIGNALED i | WSTOPPED i ->
-                  Error (Format.sprintf "Stopped with the code %i" i))
-    | Done _ | Pending | Cancelled -> Lwt_result.return round
-    | Running _ -> failwith "Running round with any processus attached"
-
-  let compare round1 round2 = 
-    let date1 = Unix.mktime (date round1) |> fst in
-    let date2 = Unix.mktime (date round2) |> fst in
-    Float.compare date2 date1
-
-  let cancel round =  
     match round.status with
-    | Pending -> { round with status = Cancelled }    
-    | Running {proc = Some proc; _} -> begin 
-        proc#terminate;
-        ignore proc#close;
-        { round with status = Cancelled } 
+    | Pending susp -> begin
+        let%lwt status = match%lwt Lazy.force susp with
+        | Ok proc -> Lwt.return (Running proc)
+        | Error err -> Lwt.return (Failed err)
+        in
+        Lwt.return {round with date = now(); status}
       end
-    | Running _ | Done _ | Cancelled -> round
+    | Running _ | Failed _ | Done _ -> Lwt.return round 
+
+  let update round =
+    match round.status with
+    | Running proc ->
+        if Process.is_done proc then
+          Process.db_file proc |> retrieve_info 
+        else Lwt.return round
+    | Pending _ | Failed _ | Done _ -> Lwt.return round
+
+  let stop round =
+    match round.status with
+    | Running proc when not @@ Process.is_done proc -> 
+        let%lwt rc = Process.stop proc in
+        Lwt.return {round with date = now (); status = Failed (`Stopped rc)}
+    | Pending _ | Running _ | Failed _ | Done _ -> Lwt.return round 
+
+  let is_done round =
+    match round.status with
+    | Pending _ -> false
+    | Running proc -> Process.is_done proc
+    | Failed _ | Done _ -> true
 
   let problems round =
-    match status round with
-    | Running {db_file; info; _} | Done {db_file; info; _} -> 
+    match round.status with
+    | Done {db_file; _} -> 
         Request.exec ~db_file Request.select_problems 
         |> Request.debug
-    | Pending | Cancelled -> Lwt_result.fail "No problem list available"
+    | Pending _ | Running _ | Failed _ -> 
+        Lwt_result.fail "Not available"
+end
+
+module Rounds_queue : sig 
+  type t
+
+  val make : dir:string -> t Lwt.t
+  val update : t -> t Lwt.t
+  val push : Round.t -> t -> t
+  val to_list : t -> Round.t list
+  val find_by_uuid : string -> t -> Round.t option
+end = struct
+  type t = {
+    lst: Round.t list;
+    pos: int option
+  }
+
+  let to_list {lst; _} = lst
+
+  let make ~dir =     
+    let ext_filter = fun str -> String.equal str ".sqlite" in
+    let%lwt lst = 
+      File.readdir ~ext_filter dir 
+      |> Lwt_list.map_s (fun db_file -> Round.resurect ~db_file) 
+    in
+    Lwt.return {lst; pos = None}
+
+  let update {lst; pos} =
+    let new_pos = ref pos in
+    let%lwt lst = Lwt_list.mapi_s (fun j (round : Round.t) ->  
+      match (pos, round.status) with
+      | Some i, Pending _ when i = j ->
+          Round.run round
+      | Some i, Done _ | Some i, Failed _ when i = j ->
+          new_pos := if i > 0 then Some (i-1) else None;
+          Round.update round
+      | _ -> Round.update round) lst in
+    Lwt.return {lst; pos = !new_pos}
+
+  let push round {lst; pos} = 
+    let pos = 
+      match pos with 
+      | Some i -> Some (i+1)
+      | None -> Some 0
+    in
+    {lst = round :: lst; pos}
+
+  let find_by_uuid uuid {lst; _} = 
+    List.find_opt (fun (round : Round.t) -> 
+      match round.status with
+      | Done {info; _} -> String.equal uuid info.uuid
+      | Pending _ | Running _ | Failed _ -> false) lst
 end 
 
 module Views : sig
@@ -583,46 +640,47 @@ end = struct
 
   let round_status (round : Round.t) = 
     let open Tyxml.Html in
-    match Round.status round with
-    | Pending  -> txt "Pending"
-    | Running {info; _} | Done {info; _} -> 
+    match round.status with
+    | Pending _  -> txt "Pending"
+    | Running _  -> txt "Running"
+    | Done {info; _} -> 
         let link = "show/" ^ info.uuid in 
         a ~a:[a_href link] [txt "Done"]
-    | Cancelled -> txt "Cancelled"
+    | Failed _ -> txt "Error" 
 
   let round_provers (round : Round.t) = 
     let open Tyxml.Html in
-    match Round.status round with
-    | Pending | Cancelled -> txt ""
-    | Running {info; _} | Done {info; _} -> 
+    match round.status with
+    | Pending _ | Running _ | Failed _ -> txt ""
+    | Done {info; _} -> 
       let pp fmt el = Format.fprintf fmt "%s" el in
       let provers = List.map fst info.provers |> sprintf_list pp in
       txt provers 
 
   let round_uuid (round : Round.t) = 
     let open Tyxml.Html in
-    match Round.status round with
-    | Pending | Cancelled -> txt ""
-    | Running {info; _} | Done {info; _} -> 
+    match round.status with
+    | Pending _ | Running _ | Failed _ -> txt ""
+    | Done {info; _} -> 
         txt info.uuid
   
   let round_result (round : Round.t) =
     let open Tyxml.Html in
-    match Round.status round with
-    | Pending -> txt "Not yet"
-    | Running {info; _} | Done {info; _} -> 
+    match round.status with
+    | Pending _ | Running _ -> txt "Not yet"
+    | Done {info; _} -> 
         let str = Format.sprintf "%i/%i" info.ctr_suc_pbs info.ctr_pbs in
         txt str 
-    | Cancelled -> txt "Cancelled"
+    | Failed _ -> txt "Error"
 
   let round_row ~number (round : Round.t) =
     let open Tyxml.Html in
-    let date = Round.date round |> format_date in
+    let date = round.date |> format_date in
     tr [
         th (check_selector ~number) 
       ; td [round_provers round] 
       ; td [round_uuid round] 
-      ; td ~a:[a_class ["text-center"]] [txt @@ Round.config round] 
+      ; td ~a:[a_class ["text-center"]] [txt @@ round.config] 
       ; td ~a:[a_class ["text-center"]] [txt date]
       ; td ~a:[a_class ["text-center"]] [round_result round]
       ; td ~a:[a_class ["text-center"]] [round_status round] 
@@ -784,79 +842,30 @@ end = struct
     failwith "Not implemented yet."
 end
 
-module Rounds_queue : sig
-  type t 
-
-  val make: dir:string -> t Lwt.t
-end = struct
-  type t = {
-    pending_rounds: Round.t Queue.t;
-    running_round: Round.t option;
-    done_rounds: Round.t list
-  }
-
-  let make ~dir = 
-    let%lwt pending_rounds = File.readdir 
-      ~ext_filter:(fun str -> String.equal str ".sqlite") dir 
-      |> Lwt_list.map_s (fun db_file -> 
-          match%lwt Round.resurect ~db_file with
-          | Ok round -> Lwt.return round
-          | Error _ -> failwith "Cannot restore previous rounds.") 
-    in
-    let pending_rounds = List.to_seq pending_rounds |> Queue.of_seq in
-    Lwt.return { pending_rounds; running_round = None; done_rounds = [] } 
-end
-
-let resurected_rounds () = 
-  let%lwt rounds = File.readdir 
-      ~ext_filter:(fun str -> String.equal str ".sqlite") 
-      benchpress_share_dir 
-    |> Lwt_list.map_s (fun db_file -> 
-        match%lwt Round.resurect ~db_file with
-        | Ok round -> Lwt.return round
-        | Error err -> failwith "Cannot restore previous rounds.")
-  in
-  Lwt.return @@ ref (List.sort Round.compare rounds)
-
-let ugly res tl = 
-  match%lwt res with
-  | Ok res -> Lwt.return (res :: tl)
-  | Error str ->
-      Lwt.return tl
+type ctx = { 
+  mutable queue: Rounds_queue.t
+}
 
 module Handlers : sig
-  type ctx = Round.t list ref Lwt.t
-  
-  val handle_rounds_list : ctx -> Dream.handler
-  val handle_round_detail : ctx -> Dream.handler
-  val handle_schedule_round : ctx -> Dream.handler
-  val handle_stop_round : ctx -> Dream.handler
+  val handle_rounds_list : ctx Lwt.t -> Dream.handler
+  val handle_round_detail : ctx Lwt.t -> Dream.handler
+  (*val handle_problem_trace : Dream.handler*)
+  val handle_schedule_round : ctx Lwt.t -> Dream.handler
+  val handle_stop_round : ctx Lwt.t -> Dream.handler
 end = struct 
-  type ctx = Round.t list ref Lwt.t
-  
-  let handle_rounds_list ctx request = 
-    let%lwt rounds = ctx in
-    let%lwt r = match !rounds with
-    | [] -> Lwt.return !rounds
-    | hd :: tl -> begin 
-        match Round.status hd with
-        | Pending -> ugly (Round.run hd) tl 
-        | _ -> Lwt.return (hd :: tl) 
-    end in
-    rounds := r;
-    Views.render_rounds_list !rounds request
+  let handle_rounds_list ctx request =
+    let%lwt ({queue; _} as ctx) = ctx in 
+    let%lwt queue = Rounds_queue.update queue in
+    ctx.queue <- queue;
+    Views.render_rounds_list (Rounds_queue.to_list queue) request
     |> Dream.html
 
   let handle_round_detail ctx request = 
     let uuid = Dream.param request "uuid" in
-    let%lwt rounds = ctx in
-    match List.find_opt (fun (round : Round.t) ->
-      match Round.status round with 
-      | Pending | Running _ | Cancelled -> false
-      | Done {info; _} -> String.equal info.uuid uuid
-    ) !rounds with
+    let%lwt {queue; _} = ctx in 
+    match Rounds_queue.find_by_uuid uuid queue with
     | Some round -> begin
-        match%lwt Round.problems round  with
+        match%lwt Round.problems round with
         | Ok pbs ->
             Views.render_round_detail pbs request |> Dream.html 
         | Error _ -> 
@@ -865,9 +874,21 @@ end = struct
     | None -> 
         Views.render_404_not_found request |> Dream.html
 
+  (*let handle_problem_trace ctx request =
+    let uuid = Dream.param request "uuid" in
+    let problem_name = Dream.param request "problem" in
+    match%lwt Round.problem round problem name with
+    | Ok pb ->
+        Views.render_problem_trace pb request |> Dream.html
+    | Error _ -> 
+        Views.render_404_not_found request |> Dream.html*)
+
   let handle_schedule_round ctx request =
-    let%lwt rounds = ctx in 
-    rounds := Round.make () :: !rounds;
+    let%lwt ({queue; _} as ctx) = ctx in 
+    let new_round = Round.make ~cmd:
+      ("benchpress", [|"benchpress"; "run"; "-c"; 
+        "lib/config.sexp"; "-p"; "alt-ergo"; "lib/tests"|]) ~config:"default" in
+    ctx.queue <- Rounds_queue.push new_round queue;
     match%lwt Dream.form request with 
     | `Ok _ -> Dream.redirect request "/"
     | _ -> Dream.empty `Bad_Request
@@ -879,15 +900,19 @@ end = struct
 end
 
 let () = 
+  let ctx = 
+    let%lwt queue = Rounds_queue.make ~dir:benchpress_share_dir in
+    Lwt.return {queue}
+  in
   Dream.initialize_log ~level:`Debug ();
-  let ctx = resurected_rounds () in
   Dream.run 
   @@ Dream.logger
   @@ Dream.memory_sessions
   @@ Dream.router [
       Dream.get "/css/**" @@ Dream.static (List.hd Location.Sites.css)
-    ; Dream.get "/" @@ Handlers.handle_rounds_list ctx
-    ; Dream.get "/show/:uuid" @@ Handlers.handle_round_detail ctx 
-    ; Dream.post "/schedule" @@ Handlers.handle_schedule_round ctx 
-    ; Dream.get "/stop/:uuid" @@ Handlers.handle_stop_round ctx 
+    ; Dream.get "/" @@ Handlers.handle_rounds_list ctx 
+    ; Dream.get "/show/:uuid" @@ Handlers.handle_round_detail ctx
+    (*; Dream.get "/show/:uuid/problem/:problem" @@ Handlers.handle_problem_trace *)
+    ; Dream.post "/schedule" @@ Handlers.handle_schedule_round ctx
+    ; Dream.get "/stop" @@ Handlers.handle_stop_round ctx 
   ] 
