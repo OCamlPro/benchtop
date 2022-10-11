@@ -37,6 +37,7 @@ let handle_problem_trace ctx request =
     end
   | None, _ | _, None -> 
       Views.render_404_not_found request |> Dream.html
+
 let handle_schedule_round ctx request =
   let%lwt ({queue; _} as ctx) = ctx in 
   let new_round = Round.make ~cmd:
@@ -52,4 +53,18 @@ let handle_stop_round ctx request =
   | `Ok _ -> Dream.redirect request "/"
   | _ -> Dream.empty `Bad_Request
 
-
+let handle_round_action ctx request =
+  match%lwt Dream.form request with
+  | `Ok (("action_kind", action_kind)::tl) -> begin
+      match action_kind with
+      | "compare" -> begin
+          Dream.log "%s" (Misc.sprintf_list (fun fmt (key, value) -> Format.fprintf fmt "key: %s, value: %s" key value) tl);
+          Dream.redirect request "/"
+        end
+      | _ -> begin
+          Dream.error (fun log -> log "Unknown action %s" action_kind);
+          Dream.redirect request "/"
+        end
+      end
+  | `Ok _ -> Dream.redirect request "/"
+  | _ -> Dream.empty `Bad_Request

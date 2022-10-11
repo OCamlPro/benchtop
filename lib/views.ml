@@ -34,8 +34,6 @@ let navbar content =
 let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
   let open Tyxml.Html in
   let str = Format.sprintf "Benchtop -- %s" subtitle in
-  (* TODO: Replace the absolute url by a variable. *)
-  let css_custom_path = "http://localhost:8080/css/custom.css" in
   let bootstrap_url = "https://cdn.jsdelivr.net/npm\
     /bootstrap@5.2.1/dist/css/bootstrap.min.css"
   in 
@@ -50,7 +48,6 @@ let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
     ] () 
     ; link ~a:[a_integrity bootstrap_hash; a_crossorigin `Anonymous]
       ~rel:[`Stylesheet] ~href:bootstrap_url ()
-    ; link ~rel:[`Stylesheet] ~href:css_custom_path ()
   ]) (body [
         navbar hcontent
       ; main content
@@ -102,7 +99,8 @@ module Selector = struct
           Html.(option ~a:(a_value value :: selected_default) (txt key))
             :: options 
       | Placeholder key -> 
-          Html.(option ~a:(a_hidden () :: selected_default) 
+          Html.(option 
+            ~a:([a_disabled(); a_hidden (); a_value ""] @ selected_default) 
             (txt key)) :: options 
       | None -> options
     in
@@ -122,7 +120,7 @@ let action_form request ~actions =
   let open Tyxml in 
   [%html " 
     <form class='row row-cols-lg-auto g-3 align-items-center'\ 
-      name='action-form' method='post'>\
+      name='action-form' method='post' action='round/action'>\
       " [csrf_tag request] "
       <div class='col-12'>\
         " [Selector.make ~id:"action_kind" ~label:"Action" 
@@ -227,7 +225,7 @@ let benchpress_form request =
   "]
 
 let rounds_action_form request =
-  action_form request ~actions:[("compare", "Compare")]
+  action_form request ~actions:[("compare", "compare")]
   
 let render_rounds_list rounds request =
   let rounds_table = rounds_table rounds in
@@ -364,29 +362,29 @@ let render_problem_trace (pb : Models.Problem.t) request =
             <div class='row'>\
               <label for='problem' class='form-label'>Problem content</label>\
               <textarea class='form-control bg-light' id='problem' rows='20'\ 
-                readonly>\
-              " (Html.txt problem_content) "\
+              readonly>\
+            " (Html.txt problem_content) "\
+            </textarea>\
+          </div>\
+          <div class='row'>\
+            <div class='col'>\
+              <label for='stdout' class='form-label'>Standard output</label>\
+              <textarea class='form-control text-white bg-dark' id='stdout' rows='15' readonly>\
+              " (Html.txt pb.stdout) "\
               </textarea>\
             </div>\
-            <div class='row'>\
-              <div class='col'>\
-                <label for='stdout' class='form-label'>Standard output</label>\
-                <textarea class='form-control text-white bg-dark' id='stdout' rows='15' readonly>\
-                " (Html.txt pb.stdout) "\
-                </textarea>\
-              </div>\
-              <div class='col'>\
-                <label for='stdout' class='form-label'>Error output</label>\
-                <textarea class='form-control text-white bg-dark' id='stdout' rows='15' readonly>\
-                " (Html.txt pb.stderr) "\
-                </textarea>\
-              </div>\
+            <div class='col'>\
+              <label for='stdout' class='form-label'>Error output</label>\
+              <textarea class='form-control text-white bg-dark' id='stdout' rows='15' readonly>\
+              " (Html.txt pb.stderr) "\
+              </textarea>\
             </div>\
           </div>\
         </div>\
       </div>\
     </div>\
-  " in
-  page_layout ~subtitle:"Problem trace" [content] |> html_to_string
+  </div>\
+" in
+page_layout ~subtitle:"Problem trace" [content] |> html_to_string
 
 

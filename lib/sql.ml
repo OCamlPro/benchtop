@@ -1,12 +1,12 @@
 type 'a answer = ('a, Caqti_error.t) Lwt_result.t
 type 'a request = (module Caqti_lwt.CONNECTION) -> 'a answer
 
+let db_file_to_uri db_file = 
+  "sqlite3://" ^ Filename.concat Options.benchpress_share_dir db_file 
+
 let exec ~db_file req = 
-  let db_uri = 
-    "sqlite3://" ^ Filename.concat Options.benchpress_share_dir db_file 
-    |> Uri.of_string
-  in
-  Lwt_result.bind (Caqti_lwt.connect db_uri) req
+  let db_uri = db_file_to_uri db_file in
+  Lwt_result.bind (Caqti_lwt.connect (Uri.of_string db_uri)) req
 
 let debug ans = 
   Lwt_result.bind_lwt_error ans (fun err -> 
@@ -15,17 +15,17 @@ let debug ans =
     Lwt.return msg
   )
 
-let (@) req1 req2 db =
+let compose fn req1 req2 db =
   Lwt_result.bind (req1 db) (fun res1 ->
     match%lwt req2 db with
-    | Ok res2 -> Lwt_result.return (res1, res2)
+    | Ok res2 -> Lwt_result.return (fn res1 res2)
     | Error err -> Lwt_result.fail err)
 
 module Query_strings = struct
   open Caqti_request.Infix
   open Caqti_type.Std
 
-  let select_problem, select_problems =
+  let select_problem, select_problems, compare =
     let open Models.Problem in
     let rep_ty = 
       Caqti_type.(tup4 string string string 
@@ -48,7 +48,23 @@ module Query_strings = struct
         file_expect, timeout, CAST (stdout as TEXT), CAST (stderr as TEXT), 
         errcode, rtime 
       FROM prover_res 
+    |eos}
+    , unit ->* Caqti_type.(tup2 problem problem) @@
+    {eos|
+      SELECT 
+        prover, file, res,
+        file_expect, timeout, CAST (stdout as TEXT), CAST (stderr as TEXT), 
+        errcode, rtime,
+        other.prover, other.file, other.res,
+        other.file_expect, other.timeout, CAST (other.stdout as TEXT), 
+        CAST (other.stderr as TEXT), other.errcode, other.rtime,
     |eos})
+
+  let attach =
+    string ->! unit @@
+    {eos|
+      attach database '?' as other 
+    |eos}
 
   let round_summary = 
     let open Models.Round_summary in
@@ -98,4 +114,9 @@ let provers (module Db : Caqti_lwt.CONNECTION) =
 let set_wal (module Db : Caqti_lwt.CONNECTION) =
   Db.find Query_strings.set_wal ()
 
+let attach ~db_file (module Db : Caqti_lwt.CONNECTION) = 
+  let db_uri = db_file_to_uri db_file in 
+  Db.find Query_strings.attach db_uri
 
+let compare (module Db : Caqti_lwt.CONNECTION) =
+  Db.collect_list Query_strings.compare ()  
