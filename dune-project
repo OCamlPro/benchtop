@@ -29,8 +29,7 @@
    dream
    (tyxml-ppx (>= 4.0.0))
    (caqti-driver-sqlite3 (>= 1.9.0))
-   
- )
+   (benchpress))
  (tags
   (topics "to describe" your project))
  (sites
