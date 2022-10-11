@@ -20,4 +20,5 @@ val update : t -> t Lwt.t
 val stop : t -> t Lwt.t
 val is_done : t -> bool
 
+val problem: t -> string -> (Models.Problem.t, string) Lwt_result.t 
 val problems : t -> (Models.Problem.t list, string) Lwt_result.t

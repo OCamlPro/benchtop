@@ -133,6 +133,14 @@ let is_done round =
   | Running proc -> Process.is_done proc
   | Failed _ | Done _ -> true
 
+let problem round name = 
+  match round.status with
+  | Done {db_file; _} ->
+      Sql.exec ~db_file (Sql.select_problem name) 
+    |> Sql.debug
+  | Pending _ | Running _ | Failed _ ->
+      Lwt_result.fail "Not available"
+
 let problems round =
   match round.status with
   | Done {db_file; _} -> 

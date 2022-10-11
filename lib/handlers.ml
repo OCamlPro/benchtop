@@ -23,15 +23,20 @@ let handle_round_detail ctx request =
   | None -> 
       Views.render_404_not_found request |> Dream.html
 
-(*let handle_problem_trace ctx request =
+let handle_problem_trace ctx request =
   let uuid = Dream.param request "uuid" in
-  let problem_name = Dream.param request "problem" in
-  match%lwt Round.problem round problem name with
-  | Ok pb ->
+  let%lwt {queue; _} = ctx in 
+  let name = Dream.param request "problem" |> Dream.from_base64url in
+  match (Rounds_queue.find_by_uuid uuid queue, name) with
+  | Some round, Some name -> begin
+    match%lwt Round.problem round name with
+    | Ok pb ->
       Views.render_problem_trace pb request |> Dream.html
-  | Error _ -> 
-      Views.render_404_not_found request |> Dream.html*)
-
+    | Error _ -> 
+      Views.render_404_not_found request |> Dream.html
+    end
+  | None, _ | _, None -> 
+      Views.render_404_not_found request |> Dream.html
 let handle_schedule_round ctx request =
   let%lwt ({queue; _} as ctx) = ctx in 
   let new_round = Round.make ~cmd:

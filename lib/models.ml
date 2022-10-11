@@ -47,37 +47,38 @@ let ext_of_string = function
 module Problem = struct
   type t = {
     prover: string;
-    pb_name: string;
-    pb_path: string;
-    pb_ext: ext;
+    name: string;
+    ext: ext;
     res: res;
     expected_res: res;
     timeout: int;
+    stdout: string;
+    stderr: string;
     error_code: Unix.process_status;
     rtime: float 
   }
-  type caqti_t = string * string * string * (string * int * int * float)
+  type caqti_t = string * string * string * 
+    (string * int * string * (string * int * float))
 
-  let to_sql {prover; pb_name; pb_path; pb_ext; res; expected_res; 
-    timeout; error_code; rtime} = 
-    let file_path = 
-      Filename.concat pb_path (pb_name ^ string_of_ext pb_ext) 
-    in
+
+  let to_sql {prover; name; res; expected_res; 
+    timeout; stdout; stderr; error_code; rtime; _} = 
+    let file_path = name in 
     let res = string_of_result res in 
     let file_expect = string_of_result expected_res in
     let errcode = int_of_error_code error_code in 
-    Ok (prover, file_path, res, (file_expect, timeout, errcode, rtime))
+    Ok (prover, file_path, res, 
+      (file_expect, timeout, stdout, (stderr, errcode, rtime)))
   
   let from_sql (prover, file, res, 
-    (file_expect, timeout, errcode, rtime)) =
-    let pb_name = Filename.basename file |> Filename.chop_extension in
-    let pb_path = Filename.dirname file in
-    let pb_ext = Filename.extension file |> ext_of_string in
+    (file_expect, timeout, stdout, (stderr, errcode, rtime))) =
+    let name = file in
+    let ext = Filename.extension file |> ext_of_string in
     let res = result_of_string res in
     let expected_res = result_of_string file_expect in
     let error_code = error_code_of_int errcode in
-    Ok {prover; pb_name; pb_path; pb_ext; res; expected_res; 
-      timeout; error_code; rtime} 
+    Ok {prover; name; ext; res; expected_res; 
+      timeout; stdout; stderr; error_code; rtime} 
 end
 
 module Round_summary = struct

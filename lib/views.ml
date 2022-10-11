@@ -142,7 +142,7 @@ let round_status (round : Round.t) =
   | Pending _  -> txt "Pending"
   | Running _  -> txt "Running"
   | Done {info; _} -> 
-      let link = "show/" ^ info.uuid in 
+      let link = "round/" ^ info.uuid in 
       a ~a:[a_href link] [txt "Done"]
   | Failed _ -> txt "Error" 
 
@@ -242,14 +242,16 @@ let color_of_result (res : Models.res) =
   | Unknown -> ["text-orange"]
   | Error -> ["text-danger"]
 
-let problem_row ~number pb =
+let problem_row ~number pb request =
   let open Tyxml.Html in
   let open Models.Problem in
+  let uuid = Dream.param request "uuid" in
+  let pb_link = "/round/" ^ uuid ^ "/problem/" ^ (Dream.to_base64url pb.name) in
   tr [
       th (check_selector ~number) 
-    ; td [txt @@ pb.pb_name]
+      ; td [a ~a:[a_href pb_link] [txt pb.name]]
     ; td ~a:[a_class ["text-center"]] 
-        [txt @@ Models.string_of_ext pb.pb_ext]
+        [txt @@ Models.string_of_ext pb.ext]
     ; td ~a:[a_class ["text-center"]] 
         [txt @@ Models.string_of_int pb.timeout]
     ; td ~a:[a_class ["text-center"]] 
@@ -262,10 +264,10 @@ let problem_row ~number pb =
         [txt @@ Models.string_of_result pb.expected_res]
   ]
 
-let problems_table pbs =
+let problems_table pbs request =
   let open Tyxml.Html in
   let rows =  List.mapi (fun i pb ->
-    problem_row ~number:i pb
+    problem_row ~number:i pb request
   ) pbs in
   tablex ~a:[a_class ["table table-striped table-hover align-middle"]] 
     ~thead:(thead [
@@ -332,12 +334,59 @@ let filter_form request =
   "]
 
 let render_round_detail pbs request =
-  let table = problems_table pbs in
+  let table = problems_table pbs request in
   page_layout ~subtitle:"Round" ~hcontent:
     [filter_form request; vertical_rule; round_action_form request] [table]
   |> html_to_string 
 
-let render_problem_detail pb request = 
-  failwith "Not implemented yet."
+let render_problem_trace (pb : Models.Problem.t) request =
+  let open Tyxml in
+  let header = Format.sprintf "Problem %s" (Filename.basename pb.name) in
+  let problem_content = File.read_all (open_in pb.name) in 
+  let%html content = "
+    <div class='container-fluid'>\
+      <div class='card'>\
+        <div class='card-header'>\
+          " [Html.txt header] "\
+        </div>\
+        <div class='card-body'>\
+          <div class='container'>\
+            <div class='row'>\
+              Result :\ 
+              " [Html.txt (Models.string_of_result pb.res)] "\
+              Expected result :\ 
+              " [Html.txt (Models.string_of_result pb.expected_res)] "\
+              Timeout :\
+              " [Html.txt (Models.string_of_int pb.timeout)] "\
+              Error code :\
+              " [Html.txt (Models.(string_of_int @@ int_of_error_code pb.error_code))] "\
+            </div>
+            <div class='row'>\
+              <label for='problem' class='form-label'>Problem content</label>\
+              <textarea class='form-control bg-light' id='problem' rows='20'\ 
+                readonly>\
+              " (Html.txt problem_content) "\
+              </textarea>\
+            </div>\
+            <div class='row'>\
+              <div class='col'>\
+                <label for='stdout' class='form-label'>Standard output</label>\
+                <textarea class='form-control text-white bg-dark' id='stdout' rows='15' readonly>\
+                " (Html.txt pb.stdout) "\
+                </textarea>\
+              </div>\
+              <div class='col'>\
+                <label for='stdout' class='form-label'>Error output</label>\
+                <textarea class='form-control text-white bg-dark' id='stdout' rows='15' readonly>\
+                " (Html.txt pb.stderr) "\
+                </textarea>\
+              </div>\
+            </div>\
+          </div>\
+        </div>\
+      </div>\
+    </div>\
+  " in
+  page_layout ~subtitle:"Problem trace" [content] |> html_to_string
 
 

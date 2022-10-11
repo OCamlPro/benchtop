@@ -12,16 +12,18 @@ type ext = Ae | Smt2 | Psmt2
 module Problem : sig
   type t = private {
     prover: string;
-    pb_name: string;
-    pb_path: string;
-    pb_ext: ext;
+    name: string;
+    ext: ext;
     res: res;
     expected_res: res;
     timeout: int;
+    stdout: string;
+    stderr: string;
     error_code: Unix.process_status;
     rtime: float 
   }
-  type caqti_t = string * string * string * (string * int * int * float)
+  type caqti_t = string * string * string * 
+    (string * int * string * (string * int * float))
 
   include Model with type t := t and type caqti_t := caqti_t
 end

@@ -25,19 +25,30 @@ module Query_strings = struct
   open Caqti_request.Infix
   open Caqti_type.Std
 
-  let select_problems =
+  let select_problem, select_problems =
     let open Models.Problem in
     let rep_ty = 
-      Caqti_type.(tup4 string string string (tup4 string int int float))
+      Caqti_type.(tup4 string string string 
+        (tup4 string int string (tup3 string int float)))
     in
     let problem = custom ~encode:to_sql ~decode:from_sql rep_ty in
-    unit ->* problem @@ 
+    ( string ->! problem @@
+    {eos|
+      SELECT 
+        prover, file, res,
+        file_expect, timeout, CAST (stdout as TEXT), CAST (stderr as TEXT), 
+        errcode, rtime 
+      FROM prover_res
+      WHERE file = ?
+    |eos}
+    , unit ->* problem @@ 
     {eos|
       SELECT 
         prover, file, res, 
-        file_expect, timeout, errcode, rtime 
+        file_expect, timeout, CAST (stdout as TEXT), CAST (stderr as TEXT), 
+        errcode, rtime 
       FROM prover_res 
-    |eos}
+    |eos})
 
   let round_summary = 
     let open Models.Round_summary in
@@ -74,6 +85,9 @@ end
 
 let round_summary (module Db : Caqti_lwt.CONNECTION) =
   Db.find Query_strings.round_summary ()
+
+let select_problem name (module Db : Caqti_lwt.CONNECTION) = 
+  Db.find Query_strings.select_problem name
 
 let select_problems (module Db : Caqti_lwt.CONNECTION) =
   Db.collect_list Query_strings.select_problems ()

@@ -4,6 +4,6 @@ type ctx = {
 
 val handle_rounds_list : ctx Lwt.t -> Dream.handler
 val handle_round_detail : ctx Lwt.t -> Dream.handler
-(*val handle_problem_trace : Dream.handler*)
+val handle_problem_trace : ctx Lwt.t -> Dream.handler
 val handle_schedule_round : ctx Lwt.t -> Dream.handler
 val handle_stop_round : ctx Lwt.t -> Dream.handler
