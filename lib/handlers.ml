@@ -48,7 +48,7 @@ let handle_schedule_round ctx request =
   | `Ok _ -> Dream.redirect request "/"
   | _ -> Dream.empty `Bad_Request
 
-let handle_stop_round ctx request = 
+let handle_stop_round _ctx request = 
   match%lwt Dream.form request with 
   | `Ok _ -> Dream.redirect request "/"
   | _ -> Dream.empty `Bad_Request

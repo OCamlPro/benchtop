@@ -1,6 +1,22 @@
 type pending 
 type running
 
+module Process : sig 
+  type t = private {
+    inotify: Lwt_inotify.t;
+    handler: Lwt_process.process_none;
+    stdout: in_channel;
+    stderr: in_channel;
+    db_file: string;
+  }
+
+  val run : cmd:Lwt_process.command -> config:string -> 
+    (t, Error.t) Lwt_result.t
+  val stop : t -> Unix.process_status Lwt.t
+  val is_done : t -> bool 
+  val db_file : t -> string
+end
+
 type status = 
   | Pending of pending 
   | Running of running 
