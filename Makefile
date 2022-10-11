@@ -1,4 +1,5 @@
 build:
+	opam exec -- opam install . --deps-only
 	opam exec -- dune build
 
 clean:
