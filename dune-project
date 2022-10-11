@@ -20,7 +20,17 @@
  (name benchtop)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml dune)
+ (depends
+   ocaml
+   dune
+   dune-site
+   (lwt (>= 5.0))
+   (inotify (>= 2.0))
+   dream
+   (tyxml-ppx (>= 4.0.0))
+   (caqti-driver-sqlite3 (>= 1.9.0))
+   
+ )
  (tags
   (topics "to describe" your project))
  (sites
