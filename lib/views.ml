@@ -5,7 +5,7 @@ let html_to_string html =
 
 let format_date (tm : Unix.tm) = 
   Format.sprintf "%02i/%02i/%04i %02i:%02i:%02i"
-    tm.tm_mday tm.tm_mon tm.tm_year
+    tm.tm_mday tm.tm_mon (tm.tm_year + 1900)
     tm.tm_hour tm.tm_min tm.tm_sec 
 
 (* let sprintf_list pp lst =
