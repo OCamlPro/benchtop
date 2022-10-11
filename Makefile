@@ -1,6 +1,6 @@
 build:
-	opam exec -- opam pin add benchpress.1.2.1 git@github.com:felixleopoldo/benchpress.git
 	opam exec -- opam install . --deps-only -y
+	opam exec -- opam pin add benchpress.1.2.1 git@github.com:felixleopoldo/benchpress.git
 	opam exec -- dune build
 
 clean:
