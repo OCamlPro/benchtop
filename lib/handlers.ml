@@ -53,7 +53,7 @@ let handle_stop_round _ctx request =
   | `Ok _ -> Dream.redirect request "/"
   | _ -> Dream.empty `Bad_Request
 
-let handle_round_action ctx request =
+let handle_round_action _ctx request =
   match%lwt Dream.form request with
   | `Ok (("action_kind", action_kind)::tl) -> begin
       match action_kind with
