@@ -8,12 +8,12 @@ let format_date (tm : Unix.tm) =
     tm.tm_mday tm.tm_mon tm.tm_year
     tm.tm_hour tm.tm_min tm.tm_sec 
 
-let sprintf_list pp lst =
-  let buf = Buffer.create 200 in
-  let fmt = Format.formatter_of_buffer buf in
-  let pp_sep fmt () = Format.fprintf fmt ", " in 
-  Format.pp_print_list ~pp_sep pp fmt lst;
-  Buffer.to_seq buf |> String.of_seq
+(* let sprintf_list pp lst =
+ *   let buf = Buffer.create 200 in
+ *   let fmt = Format.formatter_of_buffer buf in
+ *   let pp_sep fmt () = Format.fprintf fmt ", " in 
+ *   Format.pp_print_list ~pp_sep pp fmt lst;
+ *   Buffer.to_seq buf |> String.of_seq *)
 
 let csrf_tag request =
   let open Tyxml in
@@ -58,7 +58,7 @@ let vertical_rule =
   let open Tyxml in
   [%html {eos|<div class="vr"></div>|eos}]
 
-let render_404_not_found request =
+let render_404_not_found _request =
   page_layout ~subtitle:"404 not found" [Tyxml.Html.txt "404 not found"] 
   |> html_to_string
 
@@ -148,9 +148,10 @@ let round_provers (round : Round.t) =
   let open Tyxml.Html in
   match round.status with
   | Pending _ | Running _ | Failed _ -> txt ""
-  | Done {info; _} -> 
-    let pp fmt el = Format.fprintf fmt "%s" el in
+  | Done {info; _} ->
+    (* let pp fmt el = Format.fprintf fmt "%s" el in *)
     (*let provers = List.map fst info.provers |> sprintf_list pp in*)
+    ignore info;
     txt "" 
 
 let round_uuid (round : Round.t) = 
@@ -284,7 +285,7 @@ let problems_table pbs request =
 let round_action_form =
   action_form ~actions:[("snapshot", "Snapshot")]
 
-let filter_form request = 
+let filter_form _request = 
   let open Tyxml in
   [%html "
   <form class='row row-cols-lg-auto g-3 align-items-center' method='get' \
@@ -337,7 +338,7 @@ let render_round_detail pbs request =
     [filter_form request; vertical_rule; round_action_form request] [table]
   |> html_to_string 
 
-let render_problem_trace (pb : Models.Problem.t) request =
+let render_problem_trace (pb : Models.Problem.t) _request =
   let open Tyxml in
   let header = Format.sprintf "Problem %s" (Filename.basename pb.name) in
   let problem_content = File.read_all (open_in pb.name) in 

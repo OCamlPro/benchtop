@@ -1,10 +1,16 @@
-module Process : sig 
-  type t
-  
-  val run : cmd:Lwt_process.command -> config:string -> 
+module Process : sig
+  type t = private {
+    inotify: Lwt_inotify.t;
+    handler: Lwt_process.process_none;
+    stdout: in_channel;
+    stderr: in_channel;
+    db_file: string;
+  }
+
+  val run : cmd:Lwt_process.command -> config:string ->
     (t, Error.t) Lwt_result.t
   val stop : t -> Unix.process_status Lwt.t
-  val is_done : t -> bool 
+  val is_done : t -> bool
   val db_file : t -> string
 end = struct
   type t = {
@@ -16,7 +22,7 @@ end = struct
   }
 
   let rec wait_db_file =
-    let is_db file = 
+    let is_db file =
       String.equal (Filename.extension file) ".sqlite"
     in
     fun inotify ->
@@ -35,6 +41,7 @@ end = struct
     (fd, Unix.in_channel_of_descr fd)
 
   let run ~cmd ~config =
+    ignore config;
     let%lwt inotify = Lwt_inotify.create () in
     let%lwt _ = 
       Lwt_inotify.add_watch inotify Options.benchpress_share_dir 
