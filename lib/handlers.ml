@@ -58,7 +58,6 @@ let handle_round_action _ctx request =
   | `Ok (("action_kind", action_kind)::tl) -> begin
       match action_kind with
       | "compare" -> begin
-          Dream.log "%s" (Misc.sprintf_list (fun fmt (key, value) -> Format.fprintf fmt "key: %s, value: %s" key value) tl);
           Dream.redirect request "/"
         end
       | _ -> begin

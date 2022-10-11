@@ -62,14 +62,14 @@ let render_404_not_found _request =
   page_layout ~subtitle:"404 not found" [Tyxml.Html.txt "404 not found"] 
   |> html_to_string
 
-let check_selector ~number = 
+let check_selector ~number value = 
   let open Tyxml in
   let num = string_of_int number in
   let id = "item_" ^ num in
   [%html "
     <span>" [Html.txt num] "</span>\
     <input class='form-check-input' type='checkbox' form='action-form' \
-      id='"id"'/>
+      id='"id"' name='"id"' value='"value"'/>\
   "]
 
 module Selector = struct 
@@ -120,13 +120,14 @@ let action_form request ~actions =
   let open Tyxml in 
   [%html " 
     <form class='row row-cols-lg-auto g-3 align-items-center'\ 
-      name='action-form' method='post' action='round/action'>\
+      name='action-form' id='action-form' \
+      method='post' action='round/action'>\
       " [csrf_tag request] "
-      <div class='col-12'>\
+      <div class='col'>\
         " [Selector.make ~id:"action_kind" ~label:"Action" 
             ~default_option:(Placeholder "...") actions] "
       </div>\
-      <div class='col-12'>\
+      <div class='col'>\ 
         <button class='btn btn-outline-success' type='submit'>\
           Do\
         </button>\
@@ -173,8 +174,14 @@ let round_result (round : Round.t) =
 let round_row ~number (round : Round.t) =
   let open Tyxml.Html in
   let date = round.date |> format_date in
+  let check_selector = 
+    match round.status with
+    | Pending _ | Running _ | Failed _ -> []
+    | Done {db_file; _} -> 
+        check_selector ~number (Dream.to_base64url db_file)
+  in
   tr [
-      th (check_selector ~number) 
+      th check_selector 
     ; td [round_provers round] 
     ; td [round_uuid round] 
     ; td ~a:[a_class ["text-center"]] [txt @@ round.config] 
@@ -247,7 +254,7 @@ let problem_row ~number pb request =
   let uuid = Dream.param request "uuid" in
   let pb_link = "/round/" ^ uuid ^ "/problem/" ^ (Dream.to_base64url pb.name) in
   tr [
-      th (check_selector ~number) 
+    th (check_selector ~number (Dream.to_base64url pb.name))
       ; td [a ~a:[a_href pb_link] [txt pb.name]]
     ; td ~a:[a_class ["text-center"]] 
         [txt @@ Models.string_of_ext pb.ext]

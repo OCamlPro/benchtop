@@ -5,16 +5,17 @@ let header_logger inner_handler request =
   let pp_fields = Misc.pp_list (fun fmt (key, value) ->
     Format.fprintf fmt "%s: %s" key value
   ) in
-  Dream.debug (fun log -> log "%a" pp_fields fields);
+  Dream.debug (fun log -> log "Http Header:@,%a" pp_fields fields);
   let _ = 
     match Dream.header request "Content-type" with
     | Some content_type -> begin
         match String.split_on_char ';' content_type with
         | "application/x-www-form-urlencoded"::_ -> 
           let _ = match%lwt Dream.form request with
-          | `Ok form_fields -> 
+          | `Ok form_fields ->
+              Dream.log "number of fields: %i" (List.length form_fields);
               Lwt.return @@ Dream.debug 
-                (fun log -> log "%a" pp_fields form_fields)
+                (fun log -> log "POST fields:@,%a" pp_fields form_fields)
           | _ -> Lwt.return ()
           in ()
         | _ -> ()
@@ -31,8 +32,8 @@ let () =
   Dream.initialize_log ~level:`Debug ();
   Dream.run 
   @@ Dream.logger
-  @@ header_logger
   @@ Dream.memory_sessions
+  @@ header_logger
   @@ Dream.router [
       Dream.get "/css/**" @@ Dream.static (List.hd Location.Sites.css)
     ; Dream.get "/" @@ Handlers.handle_rounds_list ctx 
