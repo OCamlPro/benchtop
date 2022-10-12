@@ -53,13 +53,36 @@ let handle_stop_round _ctx request =
   | `Ok _ -> Dream.redirect request "/"
   | _ -> Dream.empty `Bad_Request
 
+let compare_action = 
+  let extract_selected_items =
+    let regexp = Str.regexp "item_[0-9]+" in
+    fun lst ->
+    List.fold_left (fun acc (key, value) ->
+      if Str.string_match regexp key 0 then
+        (Dream.from_base64url value) :: acc 
+      else acc
+    ) [] lst
+  in
+  fun fields request ->
+  match extract_selected_items fields with
+  | [Some db_file1; Some db_file2] -> begin
+    let res = Sql.(exec ~db_file:db_file1 
+      (compose (fun _ b -> b) (attach ~db_file:db_file2) compare)) 
+      |> Sql.debug
+    in
+    match%lwt res with
+    | Ok _ -> Dream.redirect request "/"
+    | Error _ -> Dream.empty `Bad_Request
+    end
+  | _ -> 
+      Dream.log "Wrong compare action";
+      Dream.redirect request "/"
+
 let handle_round_action _ctx request =
   match%lwt Dream.form request with
-  | `Ok (("action_kind", action_kind)::tl) -> begin
+  | `Ok (("action_kind", action_kind)::items) -> begin
       match action_kind with
-      | "compare" -> begin
-          Dream.redirect request "/"
-        end
+      | "compare" -> compare_action items request
       | _ -> begin
           Dream.error (fun log -> log "Unknown action %s" action_kind);
           Dream.redirect request "/"

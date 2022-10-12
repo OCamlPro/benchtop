@@ -13,7 +13,6 @@ let header_logger inner_handler request =
         | "application/x-www-form-urlencoded"::_ -> 
           let _ = match%lwt Dream.form request with
           | `Ok form_fields ->
-              Dream.log "number of fields: %i" (List.length form_fields);
               Lwt.return @@ Dream.debug 
                 (fun log -> log "POST fields:@,%a" pp_fields form_fields)
           | _ -> Lwt.return ()
