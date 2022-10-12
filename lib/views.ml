@@ -8,13 +8,6 @@ let format_date (tm : Unix.tm) =
     tm.tm_mday tm.tm_mon (tm.tm_year + 1900)
     tm.tm_hour tm.tm_min tm.tm_sec 
 
-(* let sprintf_list pp lst =
- *   let buf = Buffer.create 200 in
- *   let fmt = Format.formatter_of_buffer buf in
- *   let pp_sep fmt () = Format.fprintf fmt ", " in 
- *   Format.pp_print_list ~pp_sep pp fmt lst;
- *   Buffer.to_seq buf |> String.of_seq *)
-
 let csrf_tag request =
   let open Tyxml in
   let token = Dream.csrf_token request in
@@ -67,7 +60,6 @@ let check_selector ~number value =
   let num = string_of_int number in
   let id = "item_" ^ num in
   [%html "
-    <span>" [Html.txt num] "</span>\
     <input class='form-check-input' type='checkbox' form='action-form' \
       id='"id"' name='"id"' value='"value"'/>\
   "]
@@ -178,7 +170,7 @@ let round_row ~number (round : Round.t) =
     match round.status with
     | Pending _ | Running _ | Failed _ -> []
     | Done {db_file; _} -> 
-        check_selector ~number (Dream.to_base64url db_file)
+        [check_selector ~number (Dream.to_base64url db_file)]
   in
   tr [
       th check_selector 
@@ -254,7 +246,7 @@ let problem_row ~number pb request =
   let uuid = Dream.param request "uuid" in
   let pb_link = "/round/" ^ uuid ^ "/problem/" ^ (Dream.to_base64url pb.name) in
   tr [
-    th (check_selector ~number (Dream.to_base64url pb.name))
+    th [check_selector ~number (Dream.to_base64url pb.name)]
       ; td [a ~a:[a_href pb_link] [txt pb.name]]
     ; td ~a:[a_class ["text-center"]] 
         [txt @@ Models.string_of_ext pb.ext]
