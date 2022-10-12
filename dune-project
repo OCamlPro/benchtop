@@ -5,25 +5,24 @@
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github OCamlPro/benchtop))
 
 (authors "Pierre Villemot")
 (maintainers "Pierre Villemot")
 
 (using dune_site 0.1)
 
-(license LICENSE)
-
 (documentation https://url/to/documentation)
 
 (package
  (name benchtop)
- (synopsis "A short synopsis")
+ (synopsis "A web interface for benchpress")
  (description "A longer description")
  (depends
    ocaml
    dune
    dune-site
+   cmdliner
    (lwt (>= 5.0))
    (inotify (>= 2.0))
    dream
