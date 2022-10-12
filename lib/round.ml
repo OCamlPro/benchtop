@@ -49,14 +49,14 @@ end = struct
     in
     let stdout_fd, stdout = create_temp_file "stdout" in 
     let stderr_fd, stderr = create_temp_file "stderr" in 
-    Dream.info (fun log -> log "Ready to run benchpress@.");
+    Dream.info (fun log -> log "Ready to run benchpress");
     let handler = Lwt_process.open_process_none ~stdout:(`FD_copy stdout_fd) 
       ~stderr:(`FD_copy stderr_fd) cmd in
-    Dream.info (fun log -> log "Running benchpress@.");
+    Dream.info (fun log -> log "Running benchpress");
     match%lwt Lwt.choose [wait_db_file inotify; 
         wait_terminate handler] with
       | Ok db_file -> 
-          Dream.info (fun log -> log "Found the database %s@." db_file);
+          Dream.info (fun log -> log "Found the database %s" db_file);
           Lwt_result.return {inotify; stdout; stderr; handler; db_file}
       | Error rc ->
           Dream.error (fun log -> log "\
