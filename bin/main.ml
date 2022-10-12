@@ -23,13 +23,15 @@ let header_logger inner_handler request =
   in
   inner_handler request
 
-let () = 
+let start_server interface port = 
+  let interface = Option.value interface ~default:"localhost" in
+  let port = Option.value port ~default:8080 in
   let ctx = 
     let%lwt queue = Rounds_queue.make ~dir:Options.benchpress_share_dir in
     Lwt.return ({queue} : Handlers.ctx)
   in
   Dream.initialize_log ~level:`Debug ();
-  Dream.run 
+  Dream.run ~interface ~port 
   @@ Dream.logger
   @@ Dream.memory_sessions
   @@ header_logger
@@ -44,4 +46,32 @@ let () =
       ]
     ; Dream.post "/schedule" @@ Handlers.handle_schedule_round ctx
     ; Dream.get "/stop" @@ Handlers.handle_stop_round ctx 
-  ] 
+  ]
+
+module Cmd = struct
+  open Cmdliner
+
+  let interface =
+    let doc = "Specify the listen address." in
+    Arg.(value & opt (some string) None & info ["i"; "interface"] ~doc)
+
+  let port =
+    let doc = "Specify the listen port." in
+    Arg.(value & opt (some int) None & info ["p"; "port"] ~doc)
+
+  let cmd =
+    let open Cmdliner in
+    let doc = "A web interface for Benchpress" in
+    let man = [
+        `S Manpage.s_description
+      ; `P "$(tname) runs a web interface for benchpress."
+      ; `S Manpage.s_bugs; `P "Bug reports to <pierre.villemot@ocamlpro.com>"
+    ] in
+    let info = Cmd.info "benchtop" ~version:"dev" ~doc ~man in
+    Cmd.v info Term.(const start_server $ interface $ port)
+
+  let main () = exit (Cmd.eval cmd)
+end
+
+let () = Cmd.main () 
+  
