@@ -23,6 +23,7 @@
    dune
    dune-site
    cmdliner
+   fmt
    (lwt (>= 5.0))
    (inotify (>= 2.0))
    dream

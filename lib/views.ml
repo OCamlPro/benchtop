@@ -76,9 +76,9 @@ let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
     </html>\
   "]
 
-let vertical_rule = 
+(*let vertical_rule = 
   let open Tyxml in
-  [%html {eos|<div class="vr"></div>|eos}]
+  [%html {eos|<div class="vr"></div>|eos}]*)
 
 let render_404_not_found _request =
   page_layout ~subtitle:"404 not found" [Tyxml.Html.txt "404 not found"] 
@@ -226,10 +226,6 @@ let rounds_table rounds =
       ; th ~a:[a_class ["text-center"]] [txt "Status"]
     ]
     ]) [tbody ~a:[a_class ["table-group-divider"]] rows]
-
-let bool_to_disabled_attr bool = 
-  let open Tyxml.Html in
-  if bool then [] else [a_disabled ()]
 
 let button ?(disabled=false) ~ty ~cla ~formaction content =
   let open Tyxml.Html in
