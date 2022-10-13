@@ -13,39 +13,68 @@ let csrf_tag request =
   let token = Dream.csrf_token request in
   [%html "<input name='dream.csrf' type='hidden' value='" token "'/>"]
 
-let navbar content = 
+let navbar ?(collapse_content=[]) content =
   let open Tyxml in
-  [%html "
-    <header class='navbar bg-light sticky-top'>\
-      <div class='container-fluid'>\
-        <a class='navbar-brand text-primary' href='#'>Benchtop</a>"
-        content  
-      "</div>\
-    </header>
+  [%html "\
+    <nav class='container-fluid flex-wrap'>\
+      <a class='navbar-brand text-primary' href='#'>Benchtop</a>\
+      <button class='navbar-toggler' type='button' \
+        data-bs-toggle='collapse' data-bs-target='#collapse-content' \
+        aria-controls='collapse-content' aria-expanded='false' \
+        aria-label='Toggle collapse content'>\
+        <span class='navbar-toggler-icon'></span>\
+      </button>\
+      <div class='collapse navbar-collapse d-flex flex-row \
+        justify-content-center' id='collapse-content'>\
+        " collapse_content "\
+      </div>\
+      <div class='d-flex flex-row flex-grow-1 flex-lg-grow-0 \
+        justify-content-center'>\
+        " content "\
+      </div>\
+    </nav>\
   "]
 
 let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
-  let open Tyxml.Html in
+  let open Tyxml in
   let str = Format.sprintf "Benchtop -- %s" subtitle in
-  let bootstrap_url = "https://cdn.jsdelivr.net/npm\
-    /bootstrap@5.2.1/dist/css/bootstrap.min.css"
+  let bs_css_url = "https://cdn.jsdelivr.net/npm\
+    /bootstrap@5.2.2/dist/css/bootstrap.min.css"
   in 
-  let bootstrap_hash ="sha384-iYQeCzEYFbKjA/\
-    T2uDLTpkwGzCiq6soy8tYaI1GyVh/UjpbCx/TYkiZhlZB6+fzT"
+  let bs_css_hash ="sha384-Zenh87qX5JnK2Jl0vWa8Ck2rdkQ2Bzep5IDxbcnCeuOxjzrPF/\
+    et3URy9Bv1WTRi"
   in
-  html (head (title (txt str)) [
-      meta ~a:[a_charset "utf-8"] ()
-    ; meta ~a:[
-        a_name "viewport"
-      ; a_content "with=device-width, init-scale=1"
-    ] () 
-    ; link ~a:[a_integrity bootstrap_hash; a_crossorigin `Anonymous]
-      ~rel:[`Stylesheet] ~href:bootstrap_url ()
-  ]) (body [
-        navbar hcontent
-      ; main content
-      ; footer fcontent
-    ]) 
+  let bs_script_url = "https://cdn.jsdelivr.net/npm\
+    /bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"
+  in
+  let bs_script_hash = "sha384-OERcA2EqjJCMA+/\
+    3y+gxIOqMEjwtxJY7qPCqsdltbNJuaOe923+mo//f6V8Qbsw3" 
+  in
+  [%html "\
+    <html>\
+      <head>\
+        <meta charset='utf-8'/>\
+        <meta name='viewport' content='with=device-width,init-scale=1'/>\
+        <link integrity='"bs_css_hash"' crossorigin='anonymous' \
+          rel='stylesheet' href='"bs_css_url"'/>\
+        <script src='"bs_script_url"' integrity='"bs_script_hash"' \
+          crossorigin='anonymous'></script>\
+        <title>" (Html.txt str) "</title>\
+      </head>\
+      <body>\
+        <header class='navbar navbar-expand-lg navbar-light \
+          bg-light sticky-top'>\
+          " hcontent "\
+        </header>\
+        <main>\
+          " content "\
+        </main>\
+        <footer>\
+          " fcontent "\
+        </footer>\
+      </body>\
+    </html>\
+  "]
 
 let vertical_rule = 
   let open Tyxml in
@@ -59,7 +88,7 @@ let check_selector ~number value =
   let open Tyxml in
   let num = string_of_int number in
   let id = "item_" ^ num in
-  [%html "
+  [%html "\
     <input class='form-check-input' type='checkbox' form='action-form' \
       id='"id"' name='"id"' value='"value"'/>\
   "]
@@ -96,7 +125,7 @@ module Selector = struct
             (txt key)) :: options 
       | None -> options
     in
-    [%html "
+    [%html "\
       <div class='input-group'>\
         <label class='input-group-text' for='"id"'>\
           " [Html.txt label] "\        
@@ -110,20 +139,18 @@ end
 
 let action_form request ~actions =
   let open Tyxml in 
-  [%html " 
-    <form class='row row-cols-lg-auto g-3 align-items-center'\ 
+  [%html "\
+    <form class='d-flex flex-column flex-lg-row align-items-lg-center' \
       name='action-form' id='action-form' \
       method='post' action='round/action'>\
-      " [csrf_tag request] "
-      <div class='col'>\
-        " [Selector.make ~id:"action_kind" ~label:"Action" 
-            ~default_option:(Placeholder "...") actions] "
+      " [csrf_tag request] "\
+      <div class='p-2'>\
+        " [Selector.make ~id:"action_kind" ~label:"Action"
+            ~default_option:(Placeholder "...") actions] "\
       </div>\
-      <div class='col'>\ 
-        <button class='btn btn-outline-success' type='submit'>\
-          Do\
-        </button>\
-      </div>\
+      <button class='btn btn-outline-success m-2' type='submit'>\
+        Do\
+      </button>\
     </form>\
   "]
 
@@ -187,7 +214,7 @@ let rounds_table rounds =
   let rows = List.mapi (fun i round ->
     round_row ~number:i round ) rounds 
   in
-  tablex ~a:[a_class ["table table-striped table-hover align-middle"]] 
+  tablex ~a:[a_class ["table table-striped table-hover align-middle table-responsive"]]
     ~thead:(thead [
       tr [
         th [txt "Select"]
@@ -202,23 +229,28 @@ let rounds_table rounds =
 
 let benchpress_form request =
   let open Tyxml in
-  [%html " 
-  <form class='row row-cols-lg-auto g-2 align-items-center' \
+  [%html "\
+  <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
     method='post' name='benchpress-controller' action='/schedule'>\
-    " [csrf_tag request] "
-    <div class='col-12'>\
+    " [csrf_tag request] "\
+    <div class='p-2'>\
       " [Selector.make ~id:"prover" ~label:"Prover" 
-          ~default_option:(Default_value {key="default"; value="default"}) 
-          []] "
+          ~default_option:(Default_value {key="default"; value="default"})
+          []] "\
     </div>\
-    <div class='col-12'>\
+    <div class='p-2'>\
       " [Selector.make ~id:"config" ~label:"Config" 
           ~default_option:(Default_value {key="default"; value="default"})
-          []] "
+          []] "\
     </div>\
-    <div class='col-12'>\
-      <button class='btn btn-outline-success' type='submit'>\
+    <div class='p-2'>\
+      <button class='btn btn-outline-success w-100' type='submit'>\
         Schedule\
+      </button>\
+    </div>\
+    <div class='p-2'>\
+      <button class='btn btn-outline-danger w-100' type='submit'>\
+        Stop\
       </button>\
     </div>\
   </form>\
@@ -229,8 +261,10 @@ let rounds_action_form request =
   
 let render_rounds_list rounds request =
   let rounds_table = rounds_table rounds in
-  page_layout ~subtitle:"Rounds" ~hcontent:
-    [benchpress_form request; rounds_action_form request] [rounds_table] 
+  let navbar = navbar ~collapse_content:[benchpress_form request]
+    [rounds_action_form request]
+  in
+  page_layout ~subtitle:"Rounds" ~hcontent:[navbar] [rounds_table]
   |> html_to_string
 
 let color_of_result (res : Models.res) =
@@ -267,7 +301,7 @@ let problems_table pbs request =
   let rows =  List.mapi (fun i pb ->
     problem_row ~number:i pb request
   ) pbs in
-  tablex ~a:[a_class ["table table-striped table-hover align-middle"]] 
+  tablex ~a:[a_class ["table table-striped table-hover align-middle table-responsive"]] 
     ~thead:(thead [
       tr [
         th [txt "Select"]
@@ -286,45 +320,45 @@ let round_action_form =
 
 let filter_form _request = 
   let open Tyxml in
-  [%html "
-  <form class='row row-cols-lg-auto g-3 align-items-center' method='get' \
-    >\
-    <div class='form-check form-switch'>\
-      <input class='form-check-input' type='checkbox' role='switch' 
-        id='switch-diff'>\
+  [%html "\
+  <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
+    method='get'>\
+    <div class='form-check form-switch col-lg-1 p-2'>\
       <label class='form-check-label' for='switch-diff'>\
         Diff\
       </label>\
-    </div>
-    <div class='col-12'>\
+      <input class='form-check-input float-end' type='checkbox' role='switch' \
+        id='switch-diff'>\
+    </div>\
+    <div class='p-2'>\
         <div class='input-group'>\
           <label class='input-group-text'>Problem</label>\
           <input type='text' class='form-control' name='problem' \
             placeholder='...'/>\
         </div>\
     </div>\
-    <div class='col-12'>\
+    <div class='p-2'>\
     " [Selector.make ~id:"error_code" ~label:"Error code" 
         ~default_option:(Default_value {key="any"; value="any"}) [
         ("0", "0"); ("<> 0", "<> 0"); ("1", "1"); ("123", "123")
-      ]] "
+      ]] "\
    </div>\
-   <div class='col-12'>\
+   <div class='p-2'>\
     " [Selector.make ~id:"res" ~label:"Result"
         ~default_option:(Default_value {key="any"; value="any"}) [
         ("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown"); 
         ("error", "error")
-      ]] "
+      ]] "\
    </div>\ 
-   <div class='col-12'>\
+   <div class='p-2'>\
     " [Selector.make ~id:"expected_res" ~label:"Expected"
         ~default_option:(Default_value {key="any"; value="any"}) [
         ("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown"); 
         ("error", "error")
-      ]] "
+      ]] "\
    </div>\
-   <div class='col-12'>\
-      <button class='btn btn-outline-success' type='submit'>\
+   <div class='p-2'>\
+      <button class='btn btn-outline-success w-100' type='submit'>\
         Filter\
       </button>\
     </div>\
@@ -333,15 +367,17 @@ let filter_form _request =
 
 let render_round_detail pbs request =
   let table = problems_table pbs request in
-  page_layout ~subtitle:"Round" ~hcontent:
-    [filter_form request; vertical_rule; round_action_form request] [table]
+  let navbar = navbar ~collapse_content:[filter_form request]
+    [round_action_form request] 
+  in
+  page_layout ~subtitle:"Round" ~hcontent:[navbar] [table]
   |> html_to_string 
 
 let render_problem_trace (pb : Models.Problem.t) _request =
   let open Tyxml in
   let header = Format.sprintf "Problem %s" (Filename.basename pb.name) in
-  let problem_content = File.read_all (open_in pb.name) in 
-  let%html content = "
+  let problem_content = File.read_all (open_in pb.name) in
+  let%html content = "\
     <div class='container-fluid'>\
       <div class='card'>\
         <div class='card-header'>\
