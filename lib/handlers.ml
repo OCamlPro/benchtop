@@ -8,7 +8,6 @@ let handle_rounds_list ctx request =
   ctx.queue <- queue;
   let is_running = Rounds_queue.is_running ctx.queue in
   Views.render_rounds_list ~is_running (Rounds_queue.to_list queue) request
-  |> Dream.html
 
 let handle_round_detail ctx request = 
   let uuid = Dream.param request "uuid" in
@@ -17,12 +16,12 @@ let handle_round_detail ctx request =
   | Some round -> begin
       match%lwt Round.problems round with
       | Ok pbs ->
-          Views.render_round_detail pbs request |> Dream.html 
+          Views.render_round_detail pbs request 
       | Error _ -> 
-          Views.render_404_not_found request |> Dream.html
+          Views.render_404_not_found request
       end
   | None -> 
-      Views.render_404_not_found request |> Dream.html
+      Views.render_404_not_found request
 
 let handle_problem_trace ctx request =
   let uuid = Dream.param request "uuid" in
@@ -32,12 +31,12 @@ let handle_problem_trace ctx request =
   | Some round, Some name -> begin
     match%lwt Round.problem round name with
     | Ok pb ->
-      Views.render_problem_trace pb request |> Dream.html
+      Views.render_problem_trace pb request
     | Error _ -> 
-      Views.render_404_not_found request |> Dream.html
+      Views.render_404_not_found request
     end
   | None, _ | _, None -> 
-      Views.render_404_not_found request |> Dream.html
+      Views.render_404_not_found request
 
 let handle_schedule_round ctx request =
   let%lwt ({queue; _} as ctx) = ctx in 
