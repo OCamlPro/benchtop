@@ -23,14 +23,15 @@ let header_logger inner_handler request =
   in
   inner_handler request
 
-let start_server interface port = 
+let start_server log_level interface port = 
+  let log_level = Option.value log_level ~default:`Info in
   let interface = Option.value interface ~default:"localhost" in
   let port = Option.value port ~default:8080 in
   let ctx = 
     let%lwt queue = Rounds_queue.make ~dir:Options.benchpress_share_dir in
     Lwt.return ({queue} : Handlers.ctx)
   in
-  Dream.initialize_log ~level:`Debug ();
+  Dream.initialize_log ~level:log_level ();
   Dream.run ~interface ~port 
   @@ Dream.logger
   @@ Dream.memory_sessions
@@ -53,13 +54,26 @@ let start_server interface port =
 module Cmd = struct
   open Cmdliner
 
+  let log_level =
+    let doc = "Set the logging level." in
+    let level = Arg.enum [
+        "info", `Info
+      ; "warning", `Warning
+      ; "error", `Error
+      ; "debug", `Debug 
+    ] in
+    Arg.(value & opt (some level) ~vopt:(Some `Info) None 
+      & info ["l"; "log"] ~docv:"LOG_LEVEL" ~doc) 
+
   let interface =
     let doc = "Specify the listen address." in
-    Arg.(value & opt (some string) None & info ["i"; "interface"] ~doc)
+    Arg.(value & opt (some string) None 
+      & info ["i"; "interface"] ~docv:"INTERFACE" ~doc)
 
   let port =
     let doc = "Specify the listen port." in
-    Arg.(value & opt (some int) None & info ["p"; "port"] ~doc)
+    Arg.(value & opt (some int) None 
+      & info ["p"; "port"] ~docv:"PORT" ~doc)
 
   let cmd =
     let open Cmdliner in
@@ -70,7 +84,7 @@ module Cmd = struct
       ; `S Manpage.s_bugs; `P "Bug reports to <pierre.villemot@ocamlpro.com>"
     ] in
     let info = Cmd.info "benchtop" ~version:"dev" ~doc ~man in
-    Cmd.v info Term.(const start_server $ interface $ port)
+    Cmd.v info Term.(const start_server $ log_level $ interface $ port)
 
   let main () = exit (Cmd.eval cmd)
 end
