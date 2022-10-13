@@ -5,9 +5,9 @@ type t = {
 
 let to_list {lst; _} = lst
 
-let make ~dir =     
+let make ~dir =
   let ext_filter = fun str -> String.equal str ".sqlite" in
-  let%lwt lst = 
+  let%lwt lst =
     File.readdir ~ext_filter dir 
     |> Lwt_list.map_s (fun db_file -> Round.resurect ~db_file) 
   in
@@ -15,7 +15,7 @@ let make ~dir =
 
 let rec update {lst; pos} =
   let new_pos = ref pos in
-  let%lwt lst = Lwt_list.mapi_s (fun j (round : Round.t) ->  
+  let%lwt lst = Lwt_list.mapi_s (fun j (round : Round.t) ->
     match (pos, round.status) with
     | Some i, Pending _ when i = j ->
         Round.run round
@@ -28,7 +28,7 @@ let rec update {lst; pos} =
   else
     Lwt.return {lst; pos = !new_pos}
 
-let push round {lst; pos} = 
+let push round {lst; pos} =
   let pos = 
     match pos with 
     | Some i -> Some (i+1)
@@ -37,8 +37,12 @@ let push round {lst; pos} =
   {lst = round :: lst; pos}
 
 let find_by_uuid uuid {lst; _} = 
-  List.find_opt (fun (round : Round.t) -> 
+  List.find_opt (fun (round : Round.t) ->
     match round.status with
     | Done {info; _} -> String.equal uuid info.uuid
     | Pending _ | Running _ | Failed _ -> false) lst
 
+let is_running {lst; pos} = 
+  match pos with 
+  | Some i -> not @@ Round.is_done (List.nth lst i)
+  | None -> false

@@ -72,7 +72,13 @@ end = struct
             (File.read_all stderr));
           Lwt_result.fail (`Db_not_found rc) 
 
-  let stop {handler; _} = handler#status
+  let stop {handler; stdout; stderr; db_file; _} = 
+    handler#terminate;
+    let%lwt rc = handler#status in
+    In_channel.close stdout;
+    In_channel.close stderr;
+    Unix.unlink db_file;
+    Lwt.return rc
   
   let is_done {handler; _} =
     match handler#state with

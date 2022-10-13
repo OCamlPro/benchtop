@@ -102,13 +102,13 @@ module Selector = struct
   let make ~id ~label ?(default_option=None) ?current options = 
     let open Tyxml in
     let options = List.map (fun (key1, value) -> 
-      let attributs = match current with
+      let attributes = match current with
       | Some key2 when String.equal key1 key2 -> 
           Html.[a_value value; a_selected ()]
       | Some _ | None -> 
           Html.[a_value value]
       in
-      Html.(option ~a:attributs (txt key1))
+      Html.(option ~a:attributes (txt key1))
     ) options in
     let options =
       let selected_default = match current with
@@ -225,13 +225,30 @@ let rounds_table rounds =
       ; th ~a:[a_class ["text-center"]] [txt "Result"]
       ; th ~a:[a_class ["text-center"]] [txt "Status"]
     ]
-    ]) [tbody ~a:[a_class ["table-group-divider"]] rows] 
+    ]) [tbody ~a:[a_class ["table-group-divider"]] rows]
 
-let benchpress_form request =
+let bool_to_disabled_attr bool = 
+  let open Tyxml.Html in
+  if bool then [] else [a_disabled ()]
+
+let button ?(disabled=false) ~ty ~cla ~formaction content =
+  let open Tyxml.Html in
+  let attributes = [
+      a_class cla
+    ; a_button_type ty
+    ; a_formaction formaction
+  ] in
+  let attributes =
+    if disabled then attributes
+    else a_disabled () :: attributes 
+  in
+  Tyxml.Html.button ~a:attributes content
+
+let benchpress_form ~is_running request =
   let open Tyxml in
   [%html "\
   <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
-    method='post' name='benchpress-controller' action='/schedule'>\
+    method='post' name='benchpress-controller' action='/benchpress/schedule'>\
     " [csrf_tag request] "\
     <div class='p-2'>\
       " [Selector.make ~id:"prover" ~label:"Prover" 
@@ -249,9 +266,9 @@ let benchpress_form request =
       </button>\
     </div>\
     <div class='p-2'>\
-      <button class='btn btn-outline-danger w-100' type='submit'>\
-        Stop\
-      </button>\
+      " [button ~disabled:is_running ~ty:`Submit 
+        ~cla:["btn"; "btn-danger"; "w-100"] 
+        ~formaction:"/benchpress/stop" [Html.txt "Stop"]] "\
     </div>\
   </form>\
   "]
@@ -259,9 +276,10 @@ let benchpress_form request =
 let rounds_action_form request =
   action_form request ~actions:[("compare", "compare")]
   
-let render_rounds_list rounds request =
+let render_rounds_list ~is_running rounds request =
   let rounds_table = rounds_table rounds in
-  let navbar = navbar ~collapse_content:[benchpress_form request]
+  let navbar = navbar 
+    ~collapse_content:[benchpress_form ~is_running request]
     [rounds_action_form request]
   in
   page_layout ~subtitle:"Rounds" ~hcontent:[navbar] [rounds_table]
@@ -386,9 +404,9 @@ let render_problem_trace (pb : Models.Problem.t) _request =
         <div class='card-body'>\
           <div class='container'>\
             <div class='row'>\
-              Result :\ 
+              Result :\
               " [Html.txt (Models.string_of_result pb.res)] "\
-              Expected result :\ 
+              Expected result :\
               " [Html.txt (Models.string_of_result pb.expected_res)] "\
               Timeout :\
               " [Html.txt (Models.string_of_int pb.timeout)] "\

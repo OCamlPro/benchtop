@@ -44,8 +44,10 @@ let start_server interface port =
         @@ Handlers.handle_problem_trace ctx 
       ; Dream.post "/action" @@ Handlers.handle_round_action ctx
       ]
-    ; Dream.post "/schedule" @@ Handlers.handle_schedule_round ctx
-    ; Dream.get "/stop" @@ Handlers.handle_stop_round ctx 
+    ; Dream.scope "/benchpress" [Dream.origin_referrer_check] [
+        Dream.post "/schedule" @@ Handlers.handle_schedule_round ctx
+      ; Dream.post "/stop" @@ Handlers.handle_stop_round ctx
+    ]
   ]
 
 module Cmd = struct

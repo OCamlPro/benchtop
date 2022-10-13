@@ -6,7 +6,8 @@ let handle_rounds_list ctx request =
   let%lwt ({queue; _} as ctx) = ctx in 
   let%lwt queue = Rounds_queue.update queue in
   ctx.queue <- queue;
-  Views.render_rounds_list (Rounds_queue.to_list queue) request
+  let is_running = Rounds_queue.is_running ctx.queue in
+  Views.render_rounds_list ~is_running (Rounds_queue.to_list queue) request
   |> Dream.html
 
 let handle_round_detail ctx request = 
