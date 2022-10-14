@@ -3,7 +3,7 @@ type view = Dream.request -> Dream.response Lwt.t
 module Helper : sig
   val html_to_string : Tyxml.Html.doc -> Dream.response Lwt.t
   val format_date : Unix.tm -> string
-  val csrf_tag : Dream.request -> [> Html_types.input ] Tyxml.Html.elt
+  val csrf_tag : Dream.request -> [> Html_types.input] Tyxml.Html.elt
 end = struct
   let html_to_string html =
     Format.asprintf "%a@." (Tyxml.Html.pp ~indent:true ()) html
@@ -244,7 +244,7 @@ end = struct
     | Failed _ -> txt "Error"
  
   let row ~number (round : Round.t) =
-    let open Tyxml.Html in
+    let open Tyxml in
     let date = round.date |> Helper.format_date in
     let check_selector =
       match round.status with
@@ -252,35 +252,41 @@ end = struct
       | Done {db_file; _} ->
           [check_selector ~number (Dream.to_base64url db_file)]
     in
-    tr [
-        th check_selector
-      ; td [format_provers round]
-      ; td [format_uuid round]
-      ; td ~a:[a_class ["text-center"]] [txt @@ round.config]
-      ; td ~a:[a_class ["text-center"]] [txt date]
-      ; td ~a:[a_class ["text-center"]] [format_result round]
-      ; td ~a:[a_class ["text-center"]] [format_status round]
-    ] 
- 
+    [%html "\
+      <tr>\
+        <th>" check_selector "</th>\
+        <td>" [format_provers round] "</td>\
+        <td>" [format_uuid round] "</td>\
+        <td class='text-center'>" [Html.txt round.config] "</td>\
+        <td class='text-center'>" [Html.txt date] "</td>\
+        <td class='text-center'>" [format_result round] "</td>\
+        <td class='text-center'>" [format_status round] "</td>\
+      </tr>\
+    "]
+
   let table rounds =
-    let open Tyxml.Html in
-    let rows = List.mapi (fun i round ->
-      row ~number:i round ) rounds
-    in
-    tablex ~a:[a_class ["table table-striped table-hover align-middle
-      table-responsive"]]
-      ~thead:(thead [
-        tr [
-          th [txt "Select"]
-        ; th [txt "Prover"]
-        ; th [txt "Uuid"]
-        ; th ~a:[a_class ["text-center"]] [txt "Config"]
-        ; th ~a:[a_class ["text-center"]] [txt "Date"]
-        ; th ~a:[a_class ["text-center"]] [txt "Result"]
-        ; th ~a:[a_class ["text-center"]] [txt "Status"]
-      ]
-      ]) [tbody ~a:[a_class ["table-group-divider"]] rows]
- 
+    let open Tyxml in
+    let rows = List.mapi (fun i round -> row ~number:i round ) rounds in
+    [%html "\
+      <table class='table table-striped table-hover align-middle\
+        table-responsive'>\
+        <thead>\
+          <tr>\
+            <th>Select</th>\
+            <th>Prover</th>\
+            <th>Uuid</th>\
+            <th class='text-center'>Config</th>\
+            <th class='text-center'>Date</th>\
+            <th class='text-center'>Result</th>\
+            <th class='text-center'>Status</th>\
+          </tr>\
+        </thead>\
+        <tbody class='table-group-divider'>\
+          " rows "\
+        </tbody>\
+      </table>\
+    "]
+
   let action_form request =
     action_form request ~actions:[("compare", "compare")]
 end
