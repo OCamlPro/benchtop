@@ -4,6 +4,16 @@ module Helper : sig
   val html_to_string : Tyxml.Html.doc -> Dream.response Lwt.t
   val format_date : Unix.tm -> string
   val csrf_tag : Dream.request -> [> Html_types.input] Tyxml.Html.elt
+ 
+  val string_of_int : int -> string
+  val string_of_float : float -> string
+  val string_of_errcode : Models.Fields.Errcode.t -> string
+  val string_of_res : Models.Fields.Res.t -> string
+  val string_of_ext : Models.Fields.Ext.t -> string
+
+  val color_of_res : Models.Fields.Res.t -> string list
+
+  val pp_prover : Models.Prover.t Misc.printer
 end = struct
   let html_to_string html =
     Format.asprintf "%a@." (Tyxml.Html.pp ~indent:true ()) html
@@ -18,6 +28,37 @@ end = struct
     let open Tyxml in
     let token = Dream.csrf_token request in
     [%html "<input name='dream.csrf' type='hidden' value='" token "'/>"]
+
+  let string_of_errcode (errcode : Models.Fields.Errcode.t) =
+    match errcode with
+    | Success -> "success" 
+    | Failed rc -> Format.sprintf "failed %i" rc
+
+  let string_of_res (res : Models.Fields.Res.t) =
+    match res with
+    | Sat -> "sat"
+    | Unsat -> "unsat"
+    | Unknown -> "unknown"
+    | Error -> "error"
+
+  let string_of_ext (ext : Models.Fields.Ext.t) =
+    match ext with
+    | Ae -> "ae"
+    | Smt2 -> "smt2"
+    | Psmt2 -> "psmt2"
+
+  let string_of_int = Format.sprintf "%i"
+  let string_of_float = Format.sprintf "%f"
+
+  let color_of_res (res : Models.Fields.Res.t) =
+    match res with
+    | Sat -> ["text-success"]
+    | Unsat -> ["text-primary"]
+    | Unknown -> ["text-orange"]
+    | Error -> ["text-danger"]
+
+  let pp_prover fmt (prover : Models.Prover.t) =
+    Format.fprintf fmt "%s: %s" prover.name prover.version
 end 
 
 let navbar ?(collapse_content=[]) content =
@@ -212,8 +253,8 @@ end = struct
     match round.status with
     | Pending _  -> txt "Pending"
     | Running _  -> txt "Running"
-    | Done {info; _} ->
-        let link = "round/" ^ info.uuid in
+    | Done {summary; _} ->
+        let link = "round/" ^ summary.uuid in
         a ~a:[a_href link] [txt "Done"]
     | Failed _ -> txt "Error"
  
@@ -221,25 +262,24 @@ end = struct
     let open Tyxml.Html in
     match round.status with
     | Pending _ | Running _ | Failed _ -> txt ""
-    | Done {info; _} ->
+    | Done {provers; _} ->
       (* let pp fmt el = Format.fprintf fmt "%s" el in *)
       (*let provers = List.map fst info.provers |> sprintf_list pp in*)
-      ignore info;
-      txt ""
+      txt (Misc.sprintf_list Helper.pp_prover provers)
  
   let format_uuid (round : Round.t) =
     let open Tyxml.Html in
     match round.status with
     | Pending _ | Running _ | Failed _ -> txt ""
-    | Done {info; _} ->
-        txt info.uuid
+    | Done {summary; _} ->
+        txt summary.uuid
   
   let format_result (round : Round.t) =
     let open Tyxml.Html in
     match round.status with
     | Pending _ | Running _ -> txt "Not yet"
-    | Done {info; _} ->
-        let str = Format.sprintf "%i/%i" info.ctr_suc_pbs info.ctr_pbs in
+    | Done {summary; _} ->
+        let str = Format.sprintf "%i/%i" summary.ctr_suc_pbs summary.ctr_pbs in
         txt str
     | Failed _ -> txt "Error"
  
@@ -301,13 +341,6 @@ let render_rounds_list ~is_running rounds request =
   page_layout ~subtitle:"Rounds" ~hcontent:[navbar] [rounds_table]
   |> Helper.html_to_string
 
-let color_of_result (res : Models.res) =
-  match res with
-  | Sat -> ["text-success"]
-  | Unsat -> ["text-primary"]
-  | Unknown -> ["text-orange"]
-  | Error -> ["text-danger"]
-
 module Problems_list : sig
   val table : Models.Problem.t list -> Dream.request ->
     [> Html_types.tablex] Tyxml.Html.elt
@@ -318,22 +351,24 @@ end = struct
     let open Tyxml.Html in
     let open Models.Problem in
     let uuid = Dream.param request "uuid" in
-    let pb_link = "/round/" ^ uuid ^ "/problem/" ^ (Dream.to_base64url pb.name) in
+    let pb_link = 
+      "/round/" ^ uuid ^ "/problem/" ^ (Dream.to_base64url pb.name) 
+    in
     tr [
       th [check_selector ~number (Dream.to_base64url pb.name)]
         ; td [a ~a:[a_href pb_link] [txt pb.name]]
       ; td ~a:[a_class ["text-center"]]
-          [txt @@ Models.string_of_ext pb.ext]
+          [txt ""]
       ; td ~a:[a_class ["text-center"]]
-          [txt @@ Models.string_of_int pb.timeout]
+          [txt @@ Helper.string_of_int pb.timeout]
       ; td ~a:[a_class ["text-center"]]
-          [txt @@ Models.string_of_int @@ Models.int_of_error_code pb.error_code]
+          [txt @@ Helper.string_of_errcode pb.errcode]
       ; td ~a:[a_class ["text-center"]]
-          [txt @@ Models.string_of_float pb.rtime]
-      ; td ~a:[a_class (["text-center"] @ color_of_result pb.res)]
-          [txt @@ Models.string_of_result pb.res]
-      ; td ~a:[a_class (["text-center"] @ color_of_result pb.expected_res)]
-          [txt @@ Models.string_of_result pb.expected_res]
+          [txt @@ Helper.string_of_float pb.rtime]
+      ; td ~a:[a_class (["text-center"] @ Helper.color_of_res pb.res)]
+          [txt @@ Helper.string_of_res pb.res]
+      ; td ~a:[a_class (["text-center"] @ Helper.color_of_res pb.expected_res)]
+          [txt @@ Helper.string_of_res pb.expected_res]
     ]
   
   let table pbs request =
@@ -341,7 +376,8 @@ end = struct
     let rows =  List.mapi (fun i pb ->
       row ~number:i pb request
     ) pbs in
-    tablex ~a:[a_class ["table table-striped table-hover align-middle table-responsive"]] 
+    tablex ~a:[a_class ["table table-striped table-hover align-middle 
+      table-responsive"]] 
       ~thead:(thead [
         tr [
           th [txt "Select"]
@@ -429,13 +465,13 @@ let render_problem_trace (pb : Models.Problem.t) _request =
           <div class='container'>\
             <div class='row'>\
               Result :\
-              " [Html.txt (Models.string_of_result pb.res)] "\
+              " [Html.txt (Helper.string_of_res pb.res)] "\
               Expected result :\
-              " [Html.txt (Models.string_of_result pb.expected_res)] "\
+              " [Html.txt (Helper.string_of_res pb.expected_res)] "\
               Timeout :\
-              " [Html.txt (Models.string_of_int pb.timeout)] "\
+              " [Html.txt (Helper.string_of_int pb.timeout)] "\
               Error code :\
-              " [Html.txt (Models.(string_of_int @@ int_of_error_code pb.error_code))] "\
+              " [Html.txt (Helper.(string_of_errcode pb.errcode))] "\
             </div>
             <div class='row'>\
               <label for='problem' class='form-label'>Problem content</label>\
@@ -447,13 +483,15 @@ let render_problem_trace (pb : Models.Problem.t) _request =
           <div class='row'>\
             <div class='col'>\
               <label for='stdout' class='form-label'>Standard output</label>\
-              <textarea class='form-control text-white bg-dark' id='stdout' rows='15' readonly>\
+              <textarea class='form-control text-white bg-dark' \
+                id='stdout' rows='15' readonly>\
               " (Html.txt pb.stdout) "\
               </textarea>\
             </div>\
             <div class='col'>\
               <label for='stdout' class='form-label'>Error output</label>\
-              <textarea class='form-control text-white bg-dark' id='stdout' rows='15' readonly>\
+              <textarea class='form-control text-white bg-dark' \
+                id='stdout' rows='15' readonly>\
               " (Html.txt pb.stderr) "\
               </textarea>\
             </div>\

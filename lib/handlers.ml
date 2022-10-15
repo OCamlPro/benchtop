@@ -29,7 +29,7 @@ let handle_problem_trace ctx request =
   let name = Dream.param request "problem" |> Dream.from_base64url in
   match (Rounds_queue.find_by_uuid uuid queue, name) with
   | Some round, Some name -> begin
-    match%lwt Round.problem round name with
+    match%lwt Round.problem ~name round with
     | Ok pb ->
       Views.render_problem_trace pb request
     | Error _ -> 
@@ -53,36 +53,39 @@ let handle_stop_round _ctx request =
   | `Ok _ -> Dream.redirect request "/"
   | _ -> Dream.empty `Bad_Request
 
-let compare_action = 
-  let extract_selected_items =
-    let regexp = Str.regexp "item_[0-9]+" in
-    fun lst ->
-    List.fold_left (fun acc (key, value) ->
-      if Str.string_match regexp key 0 then
-        (Dream.from_base64url value) :: acc 
-      else acc
-    ) [] lst
-  in
-  fun fields request ->
-  match extract_selected_items fields with
-  | [Some db_file1; Some db_file2] -> begin
-    let res = Sql.(exec ~db_file:db_file1 
-      (compose (fun _ b -> b) (attach ~db_file:db_file2) compare)) 
-      |> Sql.debug
+module Actions = struct 
+  let compare = 
+    let extract_selected_items =
+      let regexp = Str.regexp "item_[0-9]+" in
+      fun lst ->
+      List.fold_left (fun acc (key, value) ->
+        if Str.string_match regexp key 0 then
+          (Dream.from_base64url value) :: acc 
+        else acc
+      ) [] lst
     in
-    match%lwt res with
-    | Ok _ -> Dream.redirect request "/"
-    | Error _ -> Dream.empty `Bad_Request
-    end
-  | _ -> 
-      Dream.log "Wrong compare action";
-      Dream.redirect request "/"
+    fun fields request ->
+    match extract_selected_items fields with
+    | [Some db_file1; Some db_file2] -> begin
+      (*let res = Sql.(exec ~db_file:db_file1 
+        (compose (fun _ b -> b) (attach ~db_file:db_file2) compare)) 
+        |> Sql.debug
+      in*)
+      let res = Lwt.return @@ Error "toto" in 
+      match%lwt res with
+      | Ok _ -> Dream.redirect request "/"
+      | Error _ -> Dream.empty `Bad_Request
+      end
+    | _ -> 
+        Dream.log "Wrong compare action";
+        Dream.redirect request "/"
+end
 
 let handle_round_action _ctx request =
   match%lwt Dream.form request with
-  | `Ok (("action_kind", action_kind)::items) -> begin
+  | `Ok (("action_kind", action_kind)::params) -> begin
       match action_kind with
-      | "compare" -> compare_action items request
+      | "compare" -> Actions.compare params request
       | _ -> begin
           Dream.error (fun log -> log "Unknown action %s" action_kind);
           Dream.redirect request "/"

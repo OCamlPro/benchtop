@@ -94,10 +94,14 @@ type pending = (Process.t, Error.t) Lwt_result.t Lazy.t
 type running = Process.t 
 
 type status = 
-  | Pending of pending 
-  | Running of Process.t 
+  | Pending of pending
+  | Running of Process.t
   | Failed of Error.t
-  | Done of {db_file: string; info: Models.Round_summary.t}
+  | Done of {
+    db_file: string;
+    summary: Models.Round_summary.t;
+    provers: Models.Prover.t list
+  }
 
 type t = {
   config: string;
@@ -110,14 +114,21 @@ let make ~cmd ~config =
   {config; date = now (); status} 
 
 let retrieve_info db_file =
-  let request = 
-    Sql.exec ~db_file Sql.round_summary
-    |> Sql.debug
+  let request_summary = 
+    Models.retrieve ~db_file 
+      (Models.Round_summary.retrieve ()) 
   in
-  let%lwt date, status = match%lwt request with 
-  | Ok (info : Models.Round_summary.t) -> 
-      Lwt.return (info.running_at, Done {db_file; info})
-  | Error err -> Lwt.return (now (), Failed (`Cannot_retrieve_info err))
+  let request_provers = 
+    Models.retrieve ~db_file 
+      (Models.Prover.select ~name:None ~version:None)
+  in
+  let%lwt date, status = 
+    match%lwt Lwt.both request_summary request_provers with 
+  | Ok (summary : Models.Round_summary.t), 
+    Ok (provers : Models.Prover.t list) -> 
+      Lwt.return (summary.running_at, Done {db_file; summary; provers})
+  | Error err, _ -> Lwt.return (now (), Failed err)
+  | _, Error err -> Lwt.return (now (), Failed err)
   in
   Lwt.return {config = "default"; date; status}
 
@@ -155,19 +166,19 @@ let is_done round =
   | Running proc -> Process.is_done proc
   | Failed _ | Done _ -> true
 
-let problem round name = 
+let problem ~name round = 
   match round.status with
   | Done {db_file; _} ->
-      Sql.exec ~db_file (Sql.select_problem name) 
-    |> Sql.debug
+      Models.retrieve ~db_file 
+      (Models.Problem.select_one ~name) 
   | Pending _ | Running _ | Failed _ ->
-      Lwt_result.fail "Not available"
+      Lwt_result.fail `Not_done
 
-let problems round =
+let problems ?name ?res ?expected_res ?errcode round =
   match round.status with
   | Done {db_file; _} -> 
-      Sql.exec ~db_file Sql.select_problems 
-      |> Sql.debug
+      Models.retrieve ~db_file
+      (Models.Problem.select ~name ~res ~expected_res ~errcode)
   | Pending _ | Running _ | Failed _ -> 
-      Lwt_result.fail "Not available"
+      Lwt_result.fail `Not_done
 

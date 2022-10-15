@@ -7,8 +7,6 @@ val debug : 'a answer -> ('a, string) Lwt_result.t
 val attach : db_file:string -> unit request
 
 val round_summary : Models.Round_summary.t request
-val select_problem : string -> Models.Problem.t request
-val select_problems : Models.Problem.t list request
 val provers : Models.Prover.t list request
 val set_wal : int request
-val compare : (Models.Problem.t * Models.Problem.t) list request
+val compare : Models.Problem_diff.t list request

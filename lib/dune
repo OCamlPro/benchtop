@@ -10,7 +10,6 @@
    models
    round
    rounds_queue
-   sql
    options)
  (libraries
    dune-site
@@ -21,8 +20,9 @@
    lwt
    tyxml
    fmt
-   inotify.lwt)
- (preprocess (pps lwt_ppx tyxml-ppx)))
+   inotify.lwt
+   ppx_rapper_lwt)
+ (preprocess (pps lwt_ppx tyxml-ppx ppx_rapper)))
 
 (generate_sites_module
   (module location)

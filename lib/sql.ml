@@ -26,7 +26,7 @@ module Query_strings = struct
   open Caqti_type.Std
 
   let select_problem, select_problems, compare =
-    let open Models.Problem in
+    let open Models.Problem2 in
     let rep_ty = 
       Caqti_type.(tup4 string string string 
         (tup4 string int string (tup3 string int float)))
@@ -52,14 +52,8 @@ module Query_strings = struct
     , unit ->* Caqti_type.(tup2 problem problem) @@
     "\
       SELECT \
-        p1.prover, p1.file, p1.res,\
-        p1.file_expect, p1.timeout,\
-        CAST (p1.stdout as TEXT), CAST (p1.stderr as TEXT),\
-        p1.errcode, p1.rtime,\
-        p2.prover, p2.file, p2.res,\
-        p2.file_expect, p2.timeout,\
-        CAST (p2.stdout as TEXT), CAST (p2.stderr as TEXT),\
-        p2.errcode, p2.rtime \
+        p1.file, p1.prover, p2.prover, p1.res, p2.res, p1.file_expect, \
+        p2.file_expect, p1.errcode, p2.errcode, ROUND(p1.rtime-p2.rtime,4) \
       FROM main.prover_res as p1, other.prover_res as p2 \
       WHERE p1.file = p2.file\
     ")

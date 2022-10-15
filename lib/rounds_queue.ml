@@ -39,7 +39,7 @@ let push round {lst; pos} =
 let find_by_uuid uuid {lst; _} = 
   List.find_opt (fun (round : Round.t) ->
     match round.status with
-    | Done {info; _} -> String.equal uuid info.uuid
+    | Done {summary; _} -> String.equal uuid summary.uuid
     | Pending _ | Running _ | Failed _ -> false) lst
 
 let is_running {lst; pos} = 

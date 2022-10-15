@@ -1,43 +1,68 @@
-module type Model = sig
-  type t 
-  type caqti_t
+type 'a answer = ('a, Error.t) Lwt_result.t
+type 'a request = Caqti_lwt.connection -> 'a answer 
 
-  val to_sql : t -> (caqti_t, string) result
-  val from_sql : caqti_t -> (t, string) result
+val retrieve : db_file:string -> 'a request -> 'a answer
+
+module Fields : sig 
+  module Res : sig 
+    type t = private Sat | Unsat | Unknown | Error
+    include Rapper.CUSTOM with type t := t
+  end
+
+  module Ext : sig
+    type t = private Ae | Smt2 | Psmt2
+    include Rapper.CUSTOM with type t := t
+  end
+
+  module Errcode : sig
+    type t = private Success | Failed of int 
+    include Rapper.CUSTOM with type t := t
+  end
+
+  module Time : sig
+    type t = Unix.tm
+    include Rapper.CUSTOM with type t := t
+  end
 end
 
-type res = Sat | Unsat | Unknown | Error
-type ext = Ae | Smt2 | Psmt2
-
 module Problem : sig
+  open Fields 
+
   type t = private {
-    prover: string;
     name: string;
-    ext: ext;
-    res: res;
-    expected_res: res;
+    prover: string;
+    res: Res.t;
+    expected_res: Res.t;
     timeout: int;
     stdout: string;
     stderr: string;
-    error_code: Unix.process_status;
-    rtime: float 
+    errcode: Errcode.t;
+    rtime: float
   }
-  type caqti_t = string * string * string * 
-    (string * int * string * (string * int * float))
+ 
+  val select : 
+    name:string option -> 
+    res:Res.t option -> 
+    expected_res:Res.t option -> 
+    errcode:Errcode.t option -> 
+    t list request
 
-  include Model with type t := t and type caqti_t := caqti_t
+  val select_one : 
+    name:string -> 
+    t request
 end
 
 module Round_summary : sig
+  open Fields 
+
   type t = private {
     uuid: string;
-    running_at: Unix.tm;
+    running_at: Time.t;
     ctr_pbs : int;
-    ctr_suc_pbs: int;
-  } 
-  type caqti_t = string * float * int * int
+    ctr_suc_pbs: int
+  }
 
-  include Model with type t := t and type caqti_t := caqti_t
+  val retrieve : unit -> t request
 end
 
 module Prover : sig
@@ -45,13 +70,33 @@ module Prover : sig
     name: string;
     version: string
   }
-  type caqti_t = string * string
 
-  include Model with type t := t and type caqti_t := caqti_t
+  val select : 
+    name: string option ->
+    version: string option ->
+    t list request
+
+  val select_one : 
+    name: string ->
+    version: string option ->
+    t request
 end
 
-val string_of_ext : ext -> string
-val string_of_result : res -> string
-val string_of_int : int -> string
-val string_of_float : float -> string
-val int_of_error_code : Unix.process_status -> int
+module Problem_diff : sig
+  open Fields
+
+  type t = {
+    name: string;
+    prover_1: string;
+    prover_2: string;
+    res_1: Res.t;
+    res_2: Res.t;
+    expected_res_1: Res.t;
+    expected_res_2: Res.t;
+    errcode_1 : Errcode.t;
+    errcode_2: Errcode.t;
+    rtime_diff: float
+  }
+
+  val select : unit -> t list request 
+end 
