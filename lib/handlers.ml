@@ -2,6 +2,15 @@ type ctx = {
   mutable queue: Rounds_queue.t
 }
 
+module Helper : sig
+  val get_query_param : Uri.t -> string -> string option
+end = struct
+  let get_query_param uri param =
+    Option.bind (Uri.get_query_param uri param) (function
+      | "" -> None
+      | str -> Some str)
+end
+
 let handle_rounds_list ctx request =
   let%lwt ({queue; _} as ctx) = ctx in 
   let%lwt queue = Rounds_queue.update queue in
@@ -9,18 +18,36 @@ let handle_rounds_list ctx request =
   let is_running = Rounds_queue.is_running ctx.queue in
   Views.render_rounds_list ~is_running (Rounds_queue.to_list queue) request
 
-let handle_round_detail ctx request = 
+let handle_round_detail ctx request =
   let uuid = Dream.param request "uuid" in
-  let%lwt {queue; _} = ctx in 
+  let%lwt {queue; _} = ctx in
   match Rounds_queue.find_by_uuid uuid queue with
   | Some round -> begin
-      match%lwt Round.problems round with
+      let uri = Dream.target request |> Uri.of_string in
+      let name = Helper.get_query_param uri "name" in
+      let res = Option.bind
+        (Helper.get_query_param uri "res")
+        Models.Fields.Res.of_string
+      in
+      let expected_res = Option.bind
+        (Helper.get_query_param uri "expected_res")
+        Models.Fields.Res.of_string
+      in
+      let errcode = Option.bind
+        (Helper.get_query_param uri "errcode")
+        Models.Fields.Errcode.of_string
+      in
+      let only_diff = Option.is_some
+        (Helper.get_query_param uri "only_diff")
+      in
+      match%lwt Round.problems ?name ?res ?expected_res ?errcode ~only_diff
+        round with
       | Ok pbs ->
-          Views.render_round_detail pbs request 
-      | Error _ -> 
+          Views.render_round_detail pbs request
+      | Error _ ->
           Views.render_404_not_found request
       end
-  | None -> 
+  | None ->
       Views.render_404_not_found request
 
 let handle_problem_trace ctx request =
@@ -39,22 +66,22 @@ let handle_problem_trace ctx request =
       Views.render_404_not_found request
 
 let handle_schedule_round ctx request =
-  let%lwt ({queue; _} as ctx) = ctx in 
+  let%lwt ({queue; _} as ctx) = ctx in
   let new_round = Round.make ~cmd:
-    ("benchpress", [|"benchpress"; "run"; "-c"; 
+    ("benchpress", [|"benchpress"; "run"; "-c";
       "lib/config.sexp"; "-p"; "alt-ergo"; "lib/tests"|]) ~config:"default" in
   ctx.queue <- Rounds_queue.push new_round queue;
-  match%lwt Dream.form request with 
+  match%lwt Dream.form request with
   | `Ok _ -> Dream.redirect request "/"
   | _ -> Dream.empty `Bad_Request
 
-let handle_stop_round _ctx request = 
-  match%lwt Dream.form request with 
+let handle_stop_round _ctx request =
+  match%lwt Dream.form request with
   | `Ok _ -> Dream.redirect request "/"
   | _ -> Dream.empty `Bad_Request
 
-module Actions = struct 
-  let compare = 
+module Actions = struct
+  let compare =
     let extract_selected_items =
       let regexp = Str.regexp "item_[0-9]+" in
       fun lst ->

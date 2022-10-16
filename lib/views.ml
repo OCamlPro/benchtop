@@ -14,7 +14,12 @@ module Helper : sig
   val color_of_res : Models.Fields.Res.t -> string list
 
   val pp_prover : Models.Prover.t Misc.printer
+  val look_up_param : string -> Dream.request -> string
 end = struct
+  let look_up_param param request =
+    let uri = Dream.target request |> Uri.of_string in
+    Option.value ~default:"" (Uri.get_query_param uri param)
+  
   let html_to_string html =
     Format.asprintf "%a@." (Tyxml.Html.pp ~indent:true ()) html
     |> Dream.html
@@ -147,21 +152,22 @@ module Selector = struct
     | Placeholder of string
     | None
 
-  let make ~id ~label ?(default_option=None) ?current options = 
+  let make ~id ~label ?(default_option=None) options request = 
     let open Tyxml in
+    let current = Helper.look_up_param id request in
     let options = List.map (fun (key1, value) ->
       let attributes = match current with
-      | Some key2 when String.equal key1 key2 ->
+      | key2 when String.equal key1 key2 ->
           Html.[a_value value; a_selected ()]
-      | Some _ | None ->
+      | _ ->
           Html.[a_value value]
       in
       Html.(option ~a:attributes (txt key1))
     ) options in
     let options =
       let selected_default = match current with
-      | Some _ -> []
-      | None -> [Html.a_selected ()]
+      | "" -> [Html.a_selected ()]
+      | _ -> []
       in
       match default_option with
       | Default_value {key; value} ->
@@ -194,7 +200,7 @@ let action_form request ~actions =
       " [Helper.csrf_tag request] "\
       <div class='p-2'>\
         " [Selector.make ~id:"action_kind" ~label:"Action"
-            ~default_option:(Placeholder "...") actions] "\
+            ~default_option:(Placeholder "...") actions request] "\
       </div>\
       <button class='btn btn-outline-success m-2' type='submit'>\
         Do\
@@ -224,12 +230,12 @@ let benchpress_form ~is_running request =
     <div class='p-2'>\
       " [Selector.make ~id:"prover" ~label:"Prover"
           ~default_option:(Default_value {key="default"; value="default"})
-          []] "\
+          [] request] "\
     </div>\
     <div class='p-2'>\
       " [Selector.make ~id:"config" ~label:"Config"
           ~default_option:(Default_value {key="default"; value="default"})
-          []] "\
+          [] request] "\
     </div>\
     <div class='p-2'>\
       <button class='btn btn-outline-success w-100' type='submit'>\
@@ -393,45 +399,54 @@ end = struct
   
   let action_form =
     action_form ~actions:[("snapshot", "Snapshot")]
-  
-  let filter_form _request =
+ 
+  let checkbox ?(checked=false) ?(cla=[]) id =
+    let open Tyxml.Html in
+    let checked_attribut = 
+      if checked then [a_checked ()] else []
+    in
+    input ~a:(checked_attribut @
+      [a_input_type `Checkbox; a_id id; a_name id; a_class cla]) ()
+
+  let filter_form request =
     let open Tyxml in
+    let checked = Helper.look_up_param "only_diff" request <> "" in
     [%html "\
     <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
       method='get'>\
       <div class='form-check form-switch col-lg-1 p-2'>\
-        <label class='form-check-label' for='switch-diff'>\
+        <label class='form-check-label' for='only_diff'>\
           Diff\
         </label>\
-        <input class='form-check-input float-end' type='checkbox' \
-          role='switch' id='switch-diff'>\
+        " [checkbox ~checked ~cla:["form-check-input"; "float-end"] 
+            "only_diff"] "\
       </div>\
       <div class='p-2'>\
           <div class='input-group'>\
-            <label class='input-group-text'>Problem</label>\
-            <input type='text' class='form-control' name='problem' \
+            <label class='input-group-text' for='name'>Problem</label>\
+            <input type='text' class='form-control' id='name' name='name' \
               placeholder='...'/>\
           </div>\
       </div>\
       <div class='p-2'>\
-      " [Selector.make ~id:"error_code" ~label:"Error code" 
-          ~default_option:(Default_value {key="any"; value="any"}) [
+      " [Selector.make ~id:"errcode" ~label:"Error code" 
+          ~default_option:(Default_value {key="any"; value=""}) [
           ("0", "0"); ("<> 0", "<> 0"); ("1", "1"); ("123", "123")
-        ]] "\
+          ] request] "\
      </div>\
      <div class='p-2'>\
       " [Selector.make ~id:"res" ~label:"Result"
-          ~default_option:(Default_value {key="any"; value="any"}) [
+          ~default_option:(Default_value {key="any"; value=""}) [
           ("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
           ("error", "error")
-        ]] "\
+          ] request] "\
      </div>\ 
      <div class='p-2'>\
       " [Selector.make ~id:"expected_res" ~label:"Expected"
-          ~default_option:(Default_value {key="any"; value="any"}) [
+          ~default_option:(Default_value {key="any"; value=""}) [
           ("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
           ("error", "error")
-        ]] "\
+          ] request] "\
      </div>\
      <div class='p-2'>\
         <button class='btn btn-outline-success w-100' type='submit'>\

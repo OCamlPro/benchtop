@@ -46,6 +46,7 @@ val problem:
   (Models.Problem.t, Error.t) Lwt_result.t
 
 val problems :
+  ?only_diff: bool ->
   ?name: string ->
   ?res: Models.Fields.Res.t ->
   ?expected_res: Models.Fields.Res.t ->

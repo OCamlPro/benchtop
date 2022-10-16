@@ -19,19 +19,21 @@ module Fields = struct
   module Res = struct
     type t = Sat | Unsat | Unknown | Error
 
+    let decode = function
+      | "sat" -> Ok Sat
+      | "unsat" -> Ok Unsat
+      | "unknown" -> Ok Unknown
+      | "error" -> Ok Error
+      | _ -> Error "invalid result"
+
+    let of_string res = Result.to_option (decode res)
+
     let t =
       let encode = function
         | Sat -> Ok "sat"
         | Unsat -> Ok "unsat"
         | Unknown -> Ok "unknown"
         | Error -> Ok "error"
-      in
-      let decode = function
-        | "sat" -> Ok Sat
-        | "unsat" -> Ok Unsat
-        | "unknown" -> Ok Unknown
-        | "error" -> Ok Error
-        | _ -> Error "invalid result"
       in
       Caqti_type.(custom ~encode ~decode string)
   end
@@ -55,17 +57,22 @@ module Fields = struct
   end
 
   module Errcode = struct
-    type t = Success | Failed of int 
+    type t = Success | Failed of int
  
+    let decode = function
+      | 0 -> Ok Success
+      | i -> Ok (Failed i)
+ 
+    let of_string rc =
+      match int_of_string_opt rc with
+      | Some rc -> Result.to_option (decode rc)
+      | None -> None
+
     let t =
       let encode = function
         | Success -> Ok 0
         | Failed i when i <> 0 -> Ok i
         | _ -> Error "invalid error code"
-      in
-      let decode = function
-        | 0 -> Ok Success
-        | i -> Ok (Failed i)
       in
       Caqti_type.(custom ~encode ~decode int)
   end
@@ -119,7 +126,8 @@ module Problem = struct
           (res = %Res?{res} OR %Res?{res} IS NULL) AND \
           (file_expect = %Res?{expected_res} OR %Res?{expected_res} \
             IS NULL) AND \
-          (errcode = %Errcode?{errcode} OR %Errcode?{errcode} IS NULL) \
+          (errcode = %Errcode?{errcode} OR %Errcode?{errcode} IS NULL) AND \
+          (NOT %bool{only_diff} OR (res <> file_expect))\
       " record_out]
 
   let select_one =

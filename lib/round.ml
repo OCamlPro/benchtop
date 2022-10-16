@@ -174,11 +174,11 @@ let problem ~name round =
   | Pending _ | Running _ | Failed _ ->
       Lwt_result.fail `Not_done
 
-let problems ?name ?res ?expected_res ?errcode round =
+let problems ?(only_diff=false) ?name ?res ?expected_res ?errcode round =
   match round.status with
   | Done {db_file; _} -> 
       Models.retrieve ~db_file
-      (Models.Problem.select ~name ~res ~expected_res ~errcode)
+      (Models.Problem.select ~name ~res ~expected_res ~errcode ~only_diff)
   | Pending _ | Running _ | Failed _ -> 
       Lwt_result.fail `Not_done
 

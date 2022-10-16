@@ -6,6 +6,8 @@ val retrieve : db_file:string -> 'a request -> 'a answer
 module Fields : sig 
   module Res : sig 
     type t = private Sat | Unsat | Unknown | Error
+
+    val of_string : string -> t option
     include Rapper.CUSTOM with type t := t
   end
 
@@ -16,6 +18,8 @@ module Fields : sig
 
   module Errcode : sig
     type t = private Success | Failed of int 
+
+    val of_string : string -> t option
     include Rapper.CUSTOM with type t := t
   end
 
@@ -45,6 +49,7 @@ module Problem : sig
     res:Res.t option -> 
     expected_res:Res.t option -> 
     errcode:Errcode.t option -> 
+    only_diff:bool ->
     t list request
 
   val select_one : 
