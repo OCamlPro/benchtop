@@ -221,6 +221,14 @@ let button ?(disabled=false) ~ty ~cla ~formaction content =
   in
   Tyxml.Html.button ~a:attributes content
 
+let checkbox ?(checked=false) ?(cla=[]) id =
+  let open Tyxml.Html in
+  let checked_attribut = 
+    if checked then [a_checked ()] else []
+  in
+  input ~a:(checked_attribut @
+    [a_input_type `Checkbox; a_id id; a_name id; a_class cla]) ()
+
 let benchpress_form ~is_running request =
   let open Tyxml in
   [%html "\
@@ -295,8 +303,8 @@ end = struct
     let check_selector =
       match round.status with
       | Pending _ | Running _ | Failed _ -> []
-      | Done {db_file; _} ->
-          [check_selector ~number (Dream.to_base64url db_file)]
+      | Done {summary; _} ->
+          [check_selector ~number (Dream.to_base64url summary.uuid)]
     in
     [%html "\
       <tr>\
@@ -371,8 +379,6 @@ end = struct
           <a href='"pb_link"'>" [Html.txt pb.name] "</a>\
         </td>\
         <td class='text-center'>\
-        </td>\
-        <td class='text-center'>\
           " [Html.txt (Helper.string_of_int pb.timeout)] "\
         </td>\
         <td class='text-center'>\
@@ -392,37 +398,34 @@ end = struct
     "]
   
   let table pbs request =
-    let open Tyxml.Html in
+    let open Tyxml in
     let rows =  List.mapi (fun i pb ->
       row ~number:i pb request
     ) pbs in
-    tablex ~a:[a_class ["table table-striped table-hover align-middle 
-      table-responsive"]] 
-      ~thead:(thead [
-        tr [
-          th [txt "Select"]
-        ; th ~a:[a_class ["text-left"]] [txt "Prover"]
-        ; th ~a:[a_class ["text-left"]] [txt "Problem"]
-        ; th ~a:[a_class ["text-center"]] [txt "Extension"]
-        ; th ~a:[a_class ["text-center"]] [txt "Timeout"]
-        ; th ~a:[a_class ["text-center"]] [txt "Error code"]
-        ; th ~a:[a_class ["text-center"]] [txt "Running time"]
-        ; th ~a:[a_class ["text-center"]] [txt "Result"]
-        ; th ~a:[a_class ["text-center"]] [txt "Expected"]
-      ]
-      ]) [tbody ~a:[a_class ["table-group-divider"]] rows]
-  
+    [%html "\
+      <table class='table table-striped table-hover align-middle \
+        table-responsive'>\
+        <thead>\
+          <tr>\
+            <th>Select</th>\
+            <td class='text-center'>Problem</td>\
+            <td class='text-center'>Prover</td>\
+            <td class='text-center'>Timeout</td>\
+            <td class='text-center'>Error code</td>\
+            <td class='text-center'>Running time</td>\
+            <td class='text-center'>Result</td>\
+            <td class='text-center'>Expected</td>\
+          </tr>\
+        </thead>\
+        <tbody class='table-group-divider'>\
+        " rows "\
+        </tbody>\
+      </table>\
+    "]
+
   let action_form =
     action_form ~actions:[("snapshot", "Snapshot")]
  
-  let checkbox ?(checked=false) ?(cla=[]) id =
-    let open Tyxml.Html in
-    let checked_attribut = 
-      if checked then [a_checked ()] else []
-    in
-    input ~a:(checked_attribut @
-      [a_input_type `Checkbox; a_id id; a_name id; a_class cla]) ()
-
   let filter_form request =
     let open Tyxml in
     let checked = Helper.look_up_param "only_diff" request <> "" in
@@ -533,3 +536,97 @@ let render_problem_trace (pb : Models.Problem.t) _request =
   " in
   page_layout ~subtitle:"Problem trace" [content] 
   |> Helper.html_to_string
+
+module Problem_diffs_list : sig
+  val table : Models.Problem_diff.t list -> Dream.request ->
+    [> Html_types.tablex] Tyxml.Html.elt
+end = struct 
+  let row ~number pb_diff request =
+    let open Tyxml in
+    let open Models.Problem_diff in
+    let pb_link = Format.sprintf 
+      "/round//problem/%s" (Dream.to_base64url pb_diff.name)
+    in
+    [%html "
+      <tr>\
+        <th>" [check_selector ~number (Dream.to_base64url pb_diff.name)] "</th>\
+        <td class='text-start text-break'>\
+          <a href='"pb_link"'>" [Html.txt pb_diff.name] "</a>\
+        </td>\
+        <td>\
+          " [Html.txt pb_diff.prover_1] "\
+        </td>\
+        <td>\
+          " [Html.txt (Helper.string_of_errcode pb_diff.errcode_1)] "\
+        </td>\
+        <td>\
+          " [Html.txt (Helper.string_of_float pb_diff.rtime_1)] "\
+        </td>\
+        <td class='" [Helper.color_of_res pb_diff.res_1] "'>\
+          " [Html.txt (Helper.string_of_res pb_diff.res_1)] "\
+        </td>\
+        <td class='" [Helper.color_of_res pb_diff.expected_res_1] "'>\
+          " [Html.txt (Helper.string_of_res pb_diff.expected_res_1)] "\
+        </td>\
+        <td>\
+          " [Html.txt pb_diff.prover_2] "\
+        </td>\
+        <td>\
+          " [Html.txt (Helper.string_of_errcode pb_diff.errcode_2)] "\
+        </td>\
+        <td>\
+          " [Html.txt (Helper.string_of_float pb_diff.rtime_2)] "\
+        </td>\
+        <td class='" [Helper.color_of_res pb_diff.res_2] "'>\
+          " [Html.txt (Helper.string_of_res pb_diff.res_2)] "\
+        </td>\
+        <td class='" [Helper.color_of_res pb_diff.expected_res_2] "'>\
+          " [Html.txt (Helper.string_of_res pb_diff.expected_res_2)] "\
+        </td>\
+      </tr>\
+    "]
+  
+  let table pb_diffs request =
+    let open Tyxml in
+    let rows =  List.mapi (fun i pb_diff ->
+      row ~number:i pb_diff request
+    ) pb_diffs in
+    [%html "\
+      <table class='table table-striped table-hover align-middle \
+        table-responsive text-center'>\
+        <thead>\
+          <tr>\
+            <th colspan='2'></th>\
+            <th colspan='5'>Round 1</th>\
+            <th colspan='5'>Round 2</th>\
+          </tr>
+          <tr>\
+            <th>Select</th>\
+            <th class='text-left'>Problem</th>\
+            <th>Prover</th>\
+            <th>Error code</th>\
+            <th>Running time</th>\
+            <th>Result</th>\
+            <th>Expected</th>\
+            <th>Prover</th>\
+            <th>Error code</th>\
+            <th>Running time</th>\
+            <th>Result</th>\
+            <th>Expected</th>\
+          </tr>\
+        </thead>\
+        <tbody class='table-group-divider'>\
+        " rows "\
+        </tbody>\
+      </table>\
+    "]
+end
+
+let render_rounds_diff pbs_diff request =
+  let open Tyxml in
+  let open Problem_diffs_list in
+  let navbar = navbar [] in
+  page_layout ~subtitle:"Difference" ~hcontent:[navbar] 
+    [table pbs_diff request]
+  |> Helper.html_to_string
+

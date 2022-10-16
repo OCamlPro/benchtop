@@ -43,7 +43,8 @@ let start_server log_level interface port =
         Dream.get "/:uuid" @@ Handlers.handle_round_detail ctx
       ; Dream.get "/:uuid/problem/:problem" 
         @@ Handlers.handle_problem_trace ctx 
-      ; Dream.post "/action" @@ Handlers.handle_round_action ctx
+      ; Dream.get "/:uuid1/diff/:uuid2" @@ Handlers.handle_rounds_diff ctx
+      ; Dream.post "/action" @@ Handlers.handle_round_action_dispatcher ctx
       ]
     ; Dream.scope "/benchpress" [Dream.origin_referrer_check] [
         Dream.post "/schedule" @@ Handlers.handle_schedule_round ctx

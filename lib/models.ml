@@ -1,15 +1,28 @@
 type 'a answer = ('a, Error.t) Lwt_result.t
 type 'a request = Caqti_lwt.connection -> 'a answer
 
-let retrieve ~db_file req =
-  let db_absolute_path =
-    Filename.concat Options.benchpress_share_dir db_file
-  in
+let attach db_path (module Db : Caqti_lwt.CONNECTION) =
+  let open Caqti_request.Infix in
+  let open Caqti_type.Std in
+  Db.exec (string ->. unit @@ "attach database ? as other") db_path
+
+let retrieve ~db_file ?db_attached req =
+  let open Lwt_result.Infix in
+  let prefix = Filename.concat Options.benchpress_share_dir in
+  let db_file_path = prefix db_file in
+  let db_attached_path = Option.map prefix db_attached in
   let db_uri =
-    Format.sprintf "sqlite3://%s" db_absolute_path
+    Format.sprintf "sqlite3://%s" db_file_path
     |> Uri.of_string
   in
-  let ans = Lwt_result.bind (Caqti_lwt.connect db_uri) req in
+  let ans = 
+    match db_attached_path with
+    | None -> Caqti_lwt.connect db_uri >>= req
+    | Some db_attached_path -> 
+        let con = Caqti_lwt.connect db_uri in
+        let%lwt _ = con >>= attach db_attached_path in 
+        con >>= req 
+  in
   Lwt_result.bind_lwt_error ans (fun err ->
     Dream.error (fun log -> log "%a" Error.pp err);
     Lwt.return err
@@ -221,7 +234,8 @@ module Problem_diff = struct
     expected_res_2: Res.t;
     errcode_1 : Errcode.t;
     errcode_2: Errcode.t;
-    rtime_diff: float
+    rtime_1: float;
+    rtime_2: float
   }
 
   let select =
@@ -237,7 +251,8 @@ module Problem_diff = struct
           p2.file_expect as @Res{expected_res_2}, \
           p1.errcode as @Errcode{errcode_1}, \
           p2.errcode as @Errcode{errcode_2}, \
-          ROUND(p1.rtime - p2.rtime, 4) as @float{rtime_diff} \
+          p1.rtime as @float{rtime_1}, \
+          p1.rtime as @float{rtime_2} \
         FROM main.prover_res as p1, other.prover_res as p2 \
         WHERE p1.file = p2.file\
       " record_out]

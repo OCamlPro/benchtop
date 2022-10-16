@@ -1,7 +1,8 @@
 type 'a answer = ('a, Error.t) Lwt_result.t
 type 'a request = Caqti_lwt.connection -> 'a answer 
 
-val retrieve : db_file:string -> 'a request -> 'a answer
+val retrieve : db_file:string -> ?db_attached:string -> 
+  'a request -> 'a answer
 
 module Fields : sig 
   module Res : sig 
@@ -101,7 +102,8 @@ module Problem_diff : sig
     expected_res_2: Res.t;
     errcode_1 : Errcode.t;
     errcode_2: Errcode.t;
-    rtime_diff: float
+    rtime_1: float;
+    rtime_2: float
   }
 
   val select : unit -> t list request 
