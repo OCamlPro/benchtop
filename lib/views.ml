@@ -11,7 +11,7 @@ module Helper : sig
   val string_of_res : Models.Fields.Res.t -> string
   val string_of_ext : Models.Fields.Ext.t -> string
 
-  val color_of_res : Models.Fields.Res.t -> string list
+  val color_of_res : Models.Fields.Res.t -> string
 
   val pp_prover : Models.Prover.t Misc.printer
   val look_up_param : string -> Dream.request -> string
@@ -57,10 +57,10 @@ end = struct
 
   let color_of_res (res : Models.Fields.Res.t) =
     match res with
-    | Sat -> ["text-success"]
-    | Unsat -> ["text-primary"]
-    | Unknown -> ["text-orange"]
-    | Error -> ["text-danger"]
+    | Sat -> "text-success"
+    | Unsat -> "text-primary"
+    | Unknown -> "text-orange"
+    | Error -> "text-danger"
 
   let pp_prover fmt (prover : Models.Prover.t) =
     Format.fprintf fmt "%s: %s" prover.name prover.version
@@ -354,28 +354,42 @@ module Problems_list : sig
   val filter_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
 end = struct 
   let row ~number pb request =
-    let open Tyxml.Html in
+    let open Tyxml in
     let open Models.Problem in
     let uuid = Dream.param request "uuid" in
-    let pb_link = 
-      "/round/" ^ uuid ^ "/problem/" ^ (Dream.to_base64url pb.name) 
+    let pb_link = Format.sprintf 
+      "/round/%s/problem/%s" uuid (Dream.to_base64url pb.name)
     in
-    tr [
-      th [check_selector ~number (Dream.to_base64url pb.name)]
-        ; td [a ~a:[a_href pb_link] [txt pb.name]]
-      ; td ~a:[a_class ["text-center"]]
-          [txt ""]
-      ; td ~a:[a_class ["text-center"]]
-          [txt @@ Helper.string_of_int pb.timeout]
-      ; td ~a:[a_class ["text-center"]]
-          [txt @@ Helper.string_of_errcode pb.errcode]
-      ; td ~a:[a_class ["text-center"]]
-          [txt @@ Helper.string_of_float pb.rtime]
-      ; td ~a:[a_class (["text-center"] @ Helper.color_of_res pb.res)]
-          [txt @@ Helper.string_of_res pb.res]
-      ; td ~a:[a_class (["text-center"] @ Helper.color_of_res pb.expected_res)]
-          [txt @@ Helper.string_of_res pb.expected_res]
-    ]
+    [%html "
+      <tr>\
+        <th>" [check_selector ~number (Dream.to_base64url pb.name)] "</th>\
+        <td>\
+          " [Html.txt (Format.sprintf "%s%s" 
+            pb.prover_name pb.prover_version)] "\
+        </td>\
+        <td class='text-break'>\
+          <a href='"pb_link"'>" [Html.txt pb.name] "</a>\
+        </td>\
+        <td class='text-center'>\
+        </td>\
+        <td class='text-center'>\
+          " [Html.txt (Helper.string_of_int pb.timeout)] "\
+        </td>\
+        <td class='text-center'>\
+          " [Html.txt (Helper.string_of_errcode pb.errcode)] "\
+        </td>\
+        <td class='text-center'>\
+          " [Html.txt (Helper.string_of_float pb.rtime)] "\
+        </td>\
+        <td class='" ["text-center"; (Helper.color_of_res pb.res)] "'>\
+          " [Html.txt (Helper.string_of_res pb.res)] "\
+        </td>\
+        <td class=\
+          '" ["text-center"; (Helper.color_of_res pb.expected_res)] "'>\
+          " [Html.txt (Helper.string_of_res pb.expected_res)] "\
+        </td>\
+      </tr>\
+    "]
   
   let table pbs request =
     let open Tyxml.Html in
@@ -387,6 +401,7 @@ end = struct
       ~thead:(thead [
         tr [
           th [txt "Select"]
+        ; th ~a:[a_class ["text-left"]] [txt "Prover"]
         ; th ~a:[a_class ["text-left"]] [txt "Problem"]
         ; th ~a:[a_class ["text-center"]] [txt "Extension"]
         ; th ~a:[a_class ["text-center"]] [txt "Timeout"]
@@ -492,29 +507,29 @@ let render_problem_trace (pb : Models.Problem.t) _request =
               <label for='problem' class='form-label'>Problem content</label>\
               <textarea class='form-control bg-light' id='problem' rows='20' \
               readonly>\
-            " (Html.txt problem_content) "\
-            </textarea>\
-          </div>\
-          <div class='row'>\
-            <div class='col'>\
-              <label for='stdout' class='form-label'>Standard output</label>\
-              <textarea class='form-control text-white bg-dark' \
-                id='stdout' rows='15' readonly>\
-              " (Html.txt pb.stdout) "\
+                " (Html.txt problem_content) "\
               </textarea>\
             </div>\
-            <div class='col'>\
-              <label for='stdout' class='form-label'>Error output</label>\
-              <textarea class='form-control text-white bg-dark' \
-                id='stdout' rows='15' readonly>\
-              " (Html.txt pb.stderr) "\
-              </textarea>\
+            <div class='row'>\
+              <div class='col'>\
+                <label for='stdout' class='form-label'>Standard output</label>\
+                <textarea class='form-control text-white bg-dark' \
+                  id='stdout' rows='15' readonly>\
+                  " (Html.txt pb.stdout) "\
+                </textarea>\
+              </div>\
+              <div class='col'>\
+                <label for='stdout' class='form-label'>Error output</label>\
+                <textarea class='form-control text-white bg-dark' \
+                  id='stdout' rows='15' readonly>\
+                  " (Html.txt pb.stderr) "\
+                </textarea>\
+              </div>\
             </div>\
           </div>\
         </div>\
       </div>\
     </div>\
-  </div>\
-" in
-page_layout ~subtitle:"Problem trace" [content] 
-|> Helper.html_to_string
+  " in
+  page_layout ~subtitle:"Problem trace" [content] 
+  |> Helper.html_to_string

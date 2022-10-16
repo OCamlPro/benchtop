@@ -92,88 +92,6 @@ module Fields = struct
   end
 end
 
-module Problem = struct
-  open Fields
-
-  type t = {
-    name: string;
-    prover: string;
-    res: Res.t;
-    expected_res: Res.t;
-    timeout: int;
-    stdout: string;
-    stderr: string;
-    errcode: Errcode.t;
-    rtime: float
-  }
-
-  let select =
-    [%rapper
-      get_many "\
-        SELECT \
-          @string{prover}, \
-          file as @string{name}, \
-          @Res{res}, \
-          file_expect as @Res{expected_res}, \
-          @int{timeout}, \
-          @octets{stdout}, \
-          @octets{stderr}, \
-          @Errcode{errcode}, \
-          @float{rtime} \
-        FROM prover_res \
-        WHERE \
-          (file = %string?{name} OR %string?{name} IS NULL) AND \
-          (res = %Res?{res} OR %Res?{res} IS NULL) AND \
-          (file_expect = %Res?{expected_res} OR %Res?{expected_res} \
-            IS NULL) AND \
-          (errcode = %Errcode?{errcode} OR %Errcode?{errcode} IS NULL) AND \
-          (NOT %bool{only_diff} OR (res <> file_expect))\
-      " record_out]
-
-  let select_one =
-    [%rapper
-      get_one "\
-        SELECT \
-          @string{prover}, \
-          file as @string{name}, \
-          @Res{res}, \
-          file_expect as @Res{expected_res}, \
-          @int{timeout}, \
-          @octets{stdout}, \
-          @octets{stderr}, \
-          @Errcode{errcode}, \
-          @float{rtime} \
-        FROM prover_res \
-        WHERE \
-          file = %string{name}\
-      " record_out]
-end
-
-module Round_summary = struct
-  open Fields 
-
-  type t = {
-    uuid: string;
-    running_at: Time.t;
-    ctr_pbs : int;
-    ctr_suc_pbs: int
-  }
-
-  let retrieve =
-    [%rapper
-      get_one "\
-        SELECT \
-          CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
-            AS @string{uuid},\
-          CAST ((SELECT value FROM meta WHERE key = 'timestamp') AS REAL) \
-            AS @Time{running_at},\
-          (SELECT COUNT(file) FROM prover_res) \
-            AS @int{ctr_pbs},\
-          (SELECT COUNT(file) FROM prover_res WHERE res = file_expect) \
-            AS @int{ctr_suc_pbs}\
-      " record_out]
-end
-
 module Prover = struct
   type t = {
     name: string;
@@ -200,6 +118,93 @@ module Prover = struct
         WHERE \
           name = %string{name} AND \
           (version = %string?{version} OR %string?{version} IS NULL)\
+      " record_out]
+end
+
+module Problem = struct
+  open Fields
+
+  type t = {
+    prover_name: string;
+    prover_version: string;
+    name: string;
+    res: Res.t;
+    expected_res: Res.t;
+    timeout: int;
+    stdout: string;
+    stderr: string;
+    errcode: Errcode.t;
+    rtime: float
+  }
+
+  let select =
+    [%rapper
+      get_many "\
+        SELECT \
+          prover as @string{prover_name}, \
+          prover.version as @string{prover_version}, \
+          file as @string{name}, \
+          @Res{res}, \
+          file_expect as @Res{expected_res}, \
+          prover_res.timeout as @int{timeout}, \
+          @octets{stdout}, \
+          @octets{stderr}, \
+          @Errcode{errcode}, \
+          @float{rtime} \
+        FROM prover_res, prover \
+        WHERE \
+          prover.name = prover_res.prover AND \
+          (file = %string?{name} OR %string?{name} IS NULL) AND \
+          (res = %Res?{res} OR %Res?{res} IS NULL) AND \
+          (file_expect = %Res?{expected_res} OR %Res?{expected_res} \
+            IS NULL) AND \
+          (errcode = %Errcode?{errcode} OR %Errcode?{errcode} IS NULL) AND \
+          (NOT %bool{only_diff} OR (res <> file_expect))\
+      " record_out]
+
+  let select_one =
+    [%rapper
+      get_one "\
+        SELECT \
+          prover as @string{prover_name}, \
+          prover.version as @string{prover_version}, \
+          file as @string{name}, \
+          @Res{res}, \
+          file_expect as @Res{expected_res}, \
+          @int{timeout}, \
+          @octets{stdout}, \
+          @octets{stderr}, \
+          @Errcode{errcode}, \
+          @float{rtime} \
+        FROM prover_res, prover \
+        WHERE \
+          prover.name = prover_res.prover AND \
+          file = %string{name}\
+      " record_out]
+end
+
+module Round_summary = struct
+  open Fields 
+
+  type t = {
+    uuid: string;
+    running_at: Time.t;
+    ctr_pbs : int;
+    ctr_suc_pbs: int
+  }
+
+  let retrieve =
+    [%rapper
+      get_one "\
+        SELECT \
+          CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
+            AS @string{uuid},\
+          CAST ((SELECT value FROM meta WHERE key = 'timestamp') AS REAL) \
+            AS @Time{running_at},\
+          (SELECT COUNT(file) FROM prover_res) \
+            AS @int{ctr_pbs},\
+          (SELECT COUNT(file) FROM prover_res WHERE res = file_expect) \
+            AS @int{ctr_suc_pbs}\
       " record_out]
 end
 

@@ -29,12 +29,30 @@ module Fields : sig
   end
 end
 
+module Prover : sig
+  type t = private {
+    name: string;
+    version: string
+  }
+
+  val select : 
+    name: string option ->
+    version: string option ->
+    t list request
+
+  val select_one : 
+    name: string ->
+    version: string option ->
+    t request
+end
+
 module Problem : sig
   open Fields 
 
   type t = private {
+    prover_name: string;
+    prover_version: string;
     name: string;
-    prover: string;
     res: Res.t;
     expected_res: Res.t;
     timeout: int;
@@ -68,23 +86,6 @@ module Round_summary : sig
   }
 
   val retrieve : unit -> t request
-end
-
-module Prover : sig
-  type t = private {
-    name: string;
-    version: string
-  }
-
-  val select : 
-    name: string option ->
-    version: string option ->
-    t list request
-
-  val select_one : 
-    name: string ->
-    version: string option ->
-    t request
 end
 
 module Problem_diff : sig
