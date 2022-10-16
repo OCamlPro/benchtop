@@ -184,7 +184,7 @@ module Problem = struct
           file as @string{name}, \
           @Res{res}, \
           file_expect as @Res{expected_res}, \
-          @int{timeout}, \
+          prover_res.timeout as @int{timeout}, \
           @octets{stdout}, \
           @octets{stderr}, \
           @Errcode{errcode}, \
