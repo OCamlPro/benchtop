@@ -1,14 +1,13 @@
-open Lwt_result.Infix
+open Lwt_result.Syntax
 
 type ctx = { 
   mutable queue: Rounds_queue.t
 }
 
 let (>|) : ('a, Error.t) Lwt_result.t -> 
-  ('a -> string) -> Dream.response Lwt.t
+  ('a -> (string, Error.t) Lwt_result.t) -> Dream.response Lwt.t
   = fun res f -> 
-  let g s = Lwt_result.return (f s) in
-  match%lwt res >>= g with
+  match%lwt Lwt_result.bind res f with
   | Ok view -> Dream.html view
   | Error err -> 
       Dream.error (fun log -> log "%a" Error.pp err);
@@ -27,46 +26,44 @@ end
 
 let handle_rounds_list ctx request =
   let%lwt ({queue; _} as ctx) = ctx in 
-  Rounds_queue.update queue 
-  >>= (fun queue -> 
-    ctx.queue <- queue;
-    Lwt_result.return Rounds_queue.(is_running queue, to_list queue))
-    >| fun (is_running, queue) ->
-      Views.render_rounds_list request ~is_running queue
+  (let* queue = Rounds_queue.update queue in
+  ctx.queue <- queue;
+  Lwt_result.return Rounds_queue.(is_running queue, to_list queue))
+  >| fun (is_running, queue) ->
+    Views.render_rounds_list request ~is_running queue
 
 let handle_round_detail ctx request =
   let uuid = Dream.param request "uuid" in
   let%lwt {queue; _} = ctx in
-  Rounds_queue.find_by_uuid uuid queue 
-  >>= (fun round ->
-    let name = Helper.look_up_param "name" request in
-    let res = Option.bind
-      (Helper.look_up_param "res" request)
-      Models.Fields.Res.of_string
-    in
-    let expected_res = Option.bind
-      (Helper.look_up_param "expected_res" request)
-      Models.Fields.Res.of_string
-    in
-    let errcode = Option.bind
-      (Helper.look_up_param "errcode" request)
-      Models.Fields.Errcode.of_string
-    in
-    let only_diff = Option.is_some
-      (Helper.look_up_param "only_diff" request)
-    in
-    Round.problems ?name ?res ?expected_res ?errcode ~only_diff round)
+  (let* round = Rounds_queue.find_by_uuid uuid queue in
+  let name = Helper.look_up_param "name" request in
+  let res = Option.bind
+    (Helper.look_up_param "res" request)
+    Models.Fields.Res.of_string
+  in
+  let expected_res = Option.bind
+    (Helper.look_up_param "expected_res" request)
+    Models.Fields.Res.of_string
+  in
+  let errcode = Option.bind
+    (Helper.look_up_param "errcode" request)
+    Models.Fields.Errcode.of_string
+  in
+  let only_diff = Option.is_some
+    (Helper.look_up_param "only_diff" request)
+  in
+  Round.problems ?name ?res ?expected_res ?errcode ~only_diff round)
   >| Views.render_round_detail request
 
 let handle_problem_trace ctx request =
   let uuid = Dream.param request "uuid" in
-  let name = Lwt.return (Dream.param request "problem" 
-    |> Dream.from_base64url |> Option.to_result ~none:`Not_found) 
+  let name = Dream.param request "problem" 
+    |> Dream.from_base64url |> Option.to_result ~none:`Not_found 
   in
   let%lwt {queue; _} = ctx in 
-  Lwt_result.both (Rounds_queue.find_by_uuid uuid queue) name 
-  >>= (fun (round, name) -> 
-    Round.problem ~name round)
+  (let* round = Rounds_queue.find_by_uuid uuid queue 
+  and* name = Lwt.return name in 
+  Round.problem ~name round)
   >| Views.render_problem_trace request 
 
 let handle_schedule_round ctx request =
@@ -103,13 +100,11 @@ let handle_rounds_diff ctx request =
   let uuid1 = Dream.param request "uuid1" in
   let uuid2 = Dream.param request "uuid2" in
   let%lwt {queue; _} = ctx in
-  (Lwt_result.both (Rounds_queue.find_by_uuid uuid1 queue) 
-    (Rounds_queue.find_by_uuid uuid2 queue)
-  >>= (fun (round1, round2) ->
-    Lwt_result.both (Lwt.return @@ Round.db_file round1) 
-      (Lwt.return @@ Round.db_file round2))
-    >>= (fun (db_file1, db_file2) -> 
-    Actions.compare db_file1 db_file2))
+  (let* round1 = Rounds_queue.find_by_uuid uuid1 queue
+  and* round2 = Rounds_queue.find_by_uuid uuid2 queue in
+  let* db_file1 = Lwt.return @@ Round.db_file round1 
+  and* db_file2 = Lwt.return @@ Round.db_file round2 in
+  Actions.compare db_file1 db_file2)
   >| Views.render_rounds_diff request
 
 (* TODO: Clean up *)

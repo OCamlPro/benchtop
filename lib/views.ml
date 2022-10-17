@@ -1,7 +1,7 @@
 open Tyxml
 
 module Helper : sig
-  val html_to_string : Tyxml.Html.doc -> string 
+  val html_to_string : Tyxml.Html.doc -> string
   val format_date : Unix.tm -> string
   val csrf_tag : Dream.request -> [> Html_types.input] Tyxml.Html.elt
  
@@ -344,6 +344,7 @@ let render_rounds_list request ~is_running rounds =
   in
   page_layout ~subtitle:"Rounds" ~hcontent:[navbar] [rounds_table]
   |> Helper.html_to_string
+  |> Lwt_result.return
 
 module Problems_list : sig
   val table : Models.Problem.t list -> Dream.request ->
@@ -470,6 +471,7 @@ let render_round_detail request pbs =
   in
   page_layout ~subtitle:"Round" ~hcontent:[navbar] [table]
   |> Helper.html_to_string
+  |> Lwt_result.return
 
 let render_problem_trace _request (pb : Models.Problem.t) =
   let header = Format.sprintf "Problem %s" (Filename.basename pb.name) in
@@ -522,6 +524,7 @@ let render_problem_trace _request (pb : Models.Problem.t) =
   " in
   page_layout ~subtitle:"Problem trace" [content] 
   |> Helper.html_to_string
+  |> Lwt_result.return
 
 module Problem_diffs_list : sig
   val table : Models.Problem_diff.t list -> Dream.request ->
@@ -612,4 +615,5 @@ let render_rounds_diff request pbs_diff =
   page_layout ~subtitle:"Difference" ~hcontent:[navbar] 
     [table pbs_diff request]
   |> Helper.html_to_string
+  |> Lwt_result.return
 
