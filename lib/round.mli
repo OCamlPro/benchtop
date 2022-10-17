@@ -38,6 +38,7 @@ val resurect : db_file:string -> t Lwt.t
 val run : t -> t Lwt.t
 val update : t -> t Lwt.t
 val stop : t -> t Lwt.t
+val db_file : t -> (string, Error.t) Result.t
 val is_done : t -> bool
 
 val problem:

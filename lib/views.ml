@@ -1,7 +1,7 @@
-type view = Dream.request -> Dream.response Lwt.t
+type view = Dream.request -> string 
 
 module Helper : sig
-  val html_to_string : Tyxml.Html.doc -> Dream.response Lwt.t
+  val html_to_string : Tyxml.Html.doc -> string 
   val format_date : Unix.tm -> string
   val csrf_tag : Dream.request -> [> Html_types.input] Tyxml.Html.elt
  
@@ -22,7 +22,6 @@ end = struct
   
   let html_to_string html =
     Format.asprintf "%a@." (Tyxml.Html.pp ~indent:true ()) html
-    |> Dream.html
 
   let format_date (tm : Unix.tm) = 
     Format.sprintf "%02i/%02i/%04i %02i:%02i:%02i"

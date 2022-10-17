@@ -4,6 +4,7 @@ type process_error = [
 ]
 
 type round_error = [
+  | `Not_found
   | `Cannot_retrieve_info of string
   | `Not_done
 ]

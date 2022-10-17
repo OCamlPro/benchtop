@@ -160,6 +160,11 @@ let stop round =
       Lwt.return {round with date = now (); status = Failed (`Stopped rc)}
   | Pending _ | Running _ | Failed _ | Done _ -> Lwt.return round 
 
+let db_file round =
+  match round.status with
+  | Pending _ | Running _ | Failed _ -> Error `Not_found
+  | Done {db_file; _} -> Ok db_file
+
 let is_done round =
   match round.status with
   | Pending _ -> false

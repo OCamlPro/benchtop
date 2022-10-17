@@ -1,4 +1,4 @@
-type view = Dream.request -> Dream.response Lwt.t
+type view = Dream.request -> string 
 
 val render_404_not_found : view
 val render_rounds_list : is_running:bool -> Round.t list -> view
