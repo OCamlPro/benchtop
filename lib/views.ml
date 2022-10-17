@@ -1,7 +1,5 @@
 open Tyxml
 
-type view = Dream.request -> string 
-
 module Helper : sig
   val html_to_string : Tyxml.Html.doc -> string 
   val format_date : Unix.tm -> string
@@ -191,7 +189,7 @@ module Selector = struct
     "]
 end
 
-let action_form request ~actions =
+let action_form ~actions request =
   [%html "\
     <form class='d-flex flex-column flex-lg-row align-items-lg-center' \
       name='action-form' id='action-form' \
@@ -228,7 +226,7 @@ let checkbox ?(checked=false) ?(cla=[]) id =
   input ~a:(checked_attribut @
     [a_input_type `Checkbox; a_id id; a_name id; a_class cla]) ()
 
-let benchpress_form ~is_running request =
+let benchpress_form request ~is_running =
   [%html "\
   <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
     method='post' name='benchpress-controller' action='/benchpress/schedule'>\
@@ -337,7 +335,7 @@ end = struct
     action_form request ~actions:[("compare", "compare")]
 end
  
-let render_rounds_list ~is_running rounds request =
+let render_rounds_list request ~is_running rounds =
   let open Rounds_list in
   let rounds_table = table rounds in
   let navbar = navbar
@@ -464,7 +462,7 @@ end = struct
     "]
 end
 
-let render_round_detail pbs request =
+let render_round_detail request pbs =
   let open Problems_list in 
   let table = table pbs request in
   let navbar = navbar ~collapse_content:[filter_form request]
@@ -473,7 +471,7 @@ let render_round_detail pbs request =
   page_layout ~subtitle:"Round" ~hcontent:[navbar] [table]
   |> Helper.html_to_string
 
-let render_problem_trace (pb : Models.Problem.t) _request =
+let render_problem_trace _request (pb : Models.Problem.t) =
   let header = Format.sprintf "Problem %s" (Filename.basename pb.name) in
   let problem_content = File.read_all (open_in pb.name) in
   let%html content = "\
@@ -608,7 +606,7 @@ end = struct
     "]
 end
 
-let render_rounds_diff pbs_diff request =
+let render_rounds_diff request pbs_diff =
   let open Problem_diffs_list in
   let navbar = navbar [] in
   page_layout ~subtitle:"Difference" ~hcontent:[navbar] 
