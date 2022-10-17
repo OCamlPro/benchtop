@@ -12,7 +12,8 @@ let (>>>=) : ('a, Error.t) Lwt_result.t ->
   | Ok view -> Dream.html view
   | Error err -> 
       Dream.error (fun log -> log "%a" Error.pp err);
-      Dream.empty `Bad_Request
+      Dream.html (Views.render_error 
+        ~msg:(Format.asprintf "%a" Error.pp err))  
 
 module Helper : sig
   val look_up_param : string -> Dream.request -> string option
@@ -55,7 +56,7 @@ let handle_round_detail ctx request =
       (Helper.look_up_param "only_diff" request)
     in
     Round.problems ?name ?res ?expected_res ?errcode ~only_diff round)
-    >>>= (fun pbs -> Views.render_round_detail pbs request)
+  >>>= (fun pbs -> Views.render_round_detail pbs request)
 
 let handle_problem_trace ctx request =
   let uuid = Dream.param request "uuid" in
@@ -66,7 +67,7 @@ let handle_problem_trace ctx request =
   Lwt_result.both (Rounds_queue.find_by_uuid uuid queue) name 
   >>= (fun (round, name) -> 
     Round.problem ~name round)
-    >>>= (fun pb -> Views.render_problem_trace pb request)
+  >>>= (fun pb -> Views.render_problem_trace pb request)
 
 let handle_schedule_round ctx request =
   let%lwt ({queue; _} as ctx) = ctx in
@@ -109,7 +110,7 @@ let handle_rounds_diff ctx request =
       (Lwt.return @@ Round.db_file round2))
     >>= (fun (db_file1, db_file2) -> 
     Actions.compare db_file1 db_file2))
-      >>>= (fun pb_diffs -> Views.render_rounds_diff pb_diffs request)
+  >>>= (fun pb_diffs -> Views.render_rounds_diff pb_diffs request)
 
 let handle_round_action_dispatcher ctx request =
   match%lwt Dream.form request with

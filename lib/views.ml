@@ -1,3 +1,5 @@
+open Tyxml
+
 type view = Dream.request -> string 
 
 module Helper : sig
@@ -21,7 +23,7 @@ end = struct
     Option.value ~default:"" (Uri.get_query_param uri param)
   
   let html_to_string html =
-    Format.asprintf "%a@." (Tyxml.Html.pp ~indent:true ()) html
+    Format.asprintf "%a@." (Html.pp ~indent:true ()) html
 
   let format_date (tm : Unix.tm) = 
     Format.sprintf "%02i/%02i/%04i %02i:%02i:%02i"
@@ -29,7 +31,6 @@ end = struct
       tm.tm_hour tm.tm_min tm.tm_sec 
 
   let csrf_tag request =
-    let open Tyxml in
     let token = Dream.csrf_token request in
     [%html "<input name='dream.csrf' type='hidden' value='" token "'/>"]
 
@@ -66,7 +67,6 @@ end = struct
 end 
 
 let navbar ?(collapse_content=[]) content =
-  let open Tyxml in
   [%html "\
     <nav class='container-fluid flex-wrap'>\
       <a class='navbar-brand text-primary' href='#'>Benchtop</a>\
@@ -88,7 +88,6 @@ let navbar ?(collapse_content=[]) content =
   "]
 
 let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
-  let open Tyxml in
   let str = Format.sprintf "Benchtop -- %s" subtitle in
   let bs_css_url = "https://cdn.jsdelivr.net/npm\
     /bootstrap@5.2.2/dist/css/bootstrap.min.css"
@@ -129,15 +128,18 @@ let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
   "]
 
 (*let vertical_rule = 
-  let open Tyxml in
   [%html {eos|<div class="vr"></div>|eos}]*)
 
-let render_404_not_found _request =
-  page_layout ~subtitle:"404 not found" [Tyxml.Html.txt "404 not found"]
+let render_error ~msg =
+  let navbar = navbar []
+  in
+  let%html msg = 
+    "<div>" [Html.txt msg] "</div>"
+  in
+  page_layout ~subtitle:"Error" ~hcontent:[navbar] [msg]
   |> Helper.html_to_string
 
 let check_selector ~number value =
-  let open Tyxml in
   let num = string_of_int number in
   let id = "item_" ^ num in
   [%html "\
@@ -152,7 +154,6 @@ module Selector = struct
     | None
 
   let make ~id ~label ?(default_option=None) options request = 
-    let open Tyxml in
     let current = Helper.look_up_param id request in
     let options = List.map (fun (key1, value) ->
       let attributes = match current with
@@ -191,7 +192,6 @@ module Selector = struct
 end
 
 let action_form request ~actions =
-  let open Tyxml in 
   [%html "\
     <form class='d-flex flex-column flex-lg-row align-items-lg-center' \
       name='action-form' id='action-form' \
@@ -218,7 +218,7 @@ let button ?(disabled=false) ~ty ~cla ~formaction content =
     if disabled then attributes
     else a_disabled () :: attributes
   in
-  Tyxml.Html.button ~a:attributes content
+  Html.button ~a:attributes content
 
 let checkbox ?(checked=false) ?(cla=[]) id =
   let open Tyxml.Html in
@@ -229,7 +229,6 @@ let checkbox ?(checked=false) ?(cla=[]) id =
     [a_input_type `Checkbox; a_id id; a_name id; a_class cla]) ()
 
 let benchpress_form ~is_running request =
-  let open Tyxml in
   [%html "\
   <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
     method='post' name='benchpress-controller' action='/benchpress/schedule'>\
@@ -262,42 +261,37 @@ module Rounds_list : sig
   val action_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
 end = struct 
   let format_status (round : Round.t) =
-    let open Tyxml.Html in
     match round.status with
-    | Pending _  -> txt "Pending"
-    | Running _  -> txt "Running"
+    | Pending _  -> Html.txt "Pending"
+    | Running _  -> Html.txt "Running"
     | Done {summary; _} ->
-        let link = "round/" ^ summary.uuid in
-        a ~a:[a_href link] [txt "Done"]
-    | Failed _ -> txt "Error"
+        let url = "round/" ^ summary.uuid in
+        Html.(a ~a:[a_href url] [txt "Done"])
+    | Failed _ -> Html.txt "Error"
  
   let format_provers (round : Round.t) =
-    let open Tyxml.Html in
     match round.status with
-    | Pending _ | Running _ | Failed _ -> txt ""
+    | Pending _ | Running _ | Failed _ -> Html.txt ""
     | Done {provers; _} ->
       (* let pp fmt el = Format.fprintf fmt "%s" el in *)
       (*let provers = List.map fst info.provers |> sprintf_list pp in*)
-      txt (Misc.sprintf_list Helper.pp_prover provers)
+      Html.txt (Misc.sprintf_list Helper.pp_prover provers)
  
   let format_uuid (round : Round.t) =
-    let open Tyxml.Html in
     match round.status with
-    | Pending _ | Running _ | Failed _ -> txt ""
+    | Pending _ | Running _ | Failed _ -> Html.txt ""
     | Done {summary; _} ->
-        txt summary.uuid
+        Html.txt summary.uuid
   
   let format_result (round : Round.t) =
-    let open Tyxml.Html in
     match round.status with
-    | Pending _ | Running _ -> txt "Not yet"
+    | Pending _ | Running _ -> Html.txt "Not yet"
     | Done {summary; _} ->
         let str = Format.sprintf "%i/%i" summary.ctr_suc_pbs summary.ctr_pbs in
-        txt str
-    | Failed _ -> txt "Error"
+        Html.txt str
+    | Failed _ -> Html.txt "Error"
  
   let row ~number (round : Round.t) =
-    let open Tyxml in
     let date = round.date |> Helper.format_date in
     let check_selector =
       match round.status with
@@ -318,7 +312,6 @@ end = struct
     "]
 
   let table rounds =
-    let open Tyxml in
     let rows = List.mapi (fun i round -> row ~number:i round ) rounds in
     [%html "\
       <table class='table table-striped table-hover align-middle\
@@ -361,7 +354,6 @@ module Problems_list : sig
   val filter_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
 end = struct 
   let row ~number pb request =
-    let open Tyxml in
     let open Models.Problem in
     let uuid = Dream.param request "uuid" in
     let pb_link = Format.sprintf 
@@ -397,7 +389,6 @@ end = struct
     "]
   
   let table pbs request =
-    let open Tyxml in
     let rows =  List.mapi (fun i pb ->
       row ~number:i pb request
     ) pbs in
@@ -426,7 +417,6 @@ end = struct
     action_form ~actions:[("snapshot", "Snapshot")]
  
   let filter_form request =
-    let open Tyxml in
     let checked = Helper.look_up_param "only_diff" request <> "" in
     [%html "\
     <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
@@ -484,7 +474,6 @@ let render_round_detail pbs request =
   |> Helper.html_to_string
 
 let render_problem_trace (pb : Models.Problem.t) _request =
-  let open Tyxml in
   let header = Format.sprintf "Problem %s" (Filename.basename pb.name) in
   let problem_content = File.read_all (open_in pb.name) in
   let%html content = "\
@@ -541,7 +530,6 @@ module Problem_diffs_list : sig
     [> Html_types.tablex] Tyxml.Html.elt
 end = struct 
   let row ~number pb_diff request =
-    let open Tyxml in
     let open Models.Problem_diff in
     let pb_link = Format.sprintf 
       "/round//problem/%s" (Dream.to_base64url pb_diff.name)
@@ -586,7 +574,6 @@ end = struct
     "]
   
   let table pb_diffs request =
-    let open Tyxml in
     let rows =  List.mapi (fun i pb_diff ->
       row ~number:i pb_diff request
     ) pb_diffs in
@@ -622,7 +609,6 @@ end = struct
 end
 
 let render_rounds_diff pbs_diff request =
-  let open Tyxml in
   let open Problem_diffs_list in
   let navbar = navbar [] in
   page_layout ~subtitle:"Difference" ~hcontent:[navbar] 
