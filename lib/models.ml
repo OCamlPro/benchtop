@@ -147,7 +147,8 @@ module Problem = struct
     stdout: string;
     stderr: string;
     errcode: Errcode.t;
-    rtime: float
+    rtime: float;
+    uuid: string
   }
 
   let select =
@@ -163,7 +164,9 @@ module Problem = struct
           @octets{stdout}, \
           @octets{stderr}, \
           @Errcode{errcode}, \
-          @float{rtime} \
+          @float{rtime}, \
+          CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
+            AS @string{uuid} \
         FROM prover_res, prover \
         WHERE \
           prover.name = prover_res.prover AND \
@@ -188,7 +191,9 @@ module Problem = struct
           @octets{stdout}, \
           @octets{stderr}, \
           @Errcode{errcode}, \
-          @float{rtime} \
+          @float{rtime}, \
+          CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
+            AS @string{uuid} \
         FROM prover_res, prover \
         WHERE \
           prover.name = prover_res.prover AND \

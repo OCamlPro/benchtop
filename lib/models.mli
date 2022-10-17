@@ -60,7 +60,8 @@ module Problem : sig
     stdout: string;
     stderr: string;
     errcode: Errcode.t;
-    rtime: float
+    rtime: float;
+    uuid: string
   }
  
   val select : 
