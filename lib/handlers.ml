@@ -4,7 +4,7 @@ type ctx = {
   mutable queue: Rounds_queue.t
 }
 
-let (>>>=) : ('a, Error.t) Lwt_result.t -> 
+let (>|) : ('a, Error.t) Lwt_result.t -> 
   ('a -> string) -> Dream.response Lwt.t
   = fun res f -> 
   let g s = Lwt_result.return (f s) in
@@ -31,7 +31,7 @@ let handle_rounds_list ctx request =
   >>= (fun queue -> 
     ctx.queue <- queue;
     Lwt_result.return Rounds_queue.(is_running queue, to_list queue))
-    >>>= fun (is_running, queue) ->
+    >| fun (is_running, queue) ->
       Views.render_rounds_list request ~is_running queue
 
 let handle_round_detail ctx request =
@@ -56,7 +56,7 @@ let handle_round_detail ctx request =
       (Helper.look_up_param "only_diff" request)
     in
     Round.problems ?name ?res ?expected_res ?errcode ~only_diff round)
-  >>>= Views.render_round_detail request
+  >| Views.render_round_detail request
 
 let handle_problem_trace ctx request =
   let uuid = Dream.param request "uuid" in
@@ -67,7 +67,7 @@ let handle_problem_trace ctx request =
   Lwt_result.both (Rounds_queue.find_by_uuid uuid queue) name 
   >>= (fun (round, name) -> 
     Round.problem ~name round)
-  >>>= Views.render_problem_trace request 
+  >| Views.render_problem_trace request 
 
 let handle_schedule_round ctx request =
   let%lwt ({queue; _} as ctx) = ctx in
@@ -110,8 +110,9 @@ let handle_rounds_diff ctx request =
       (Lwt.return @@ Round.db_file round2))
     >>= (fun (db_file1, db_file2) -> 
     Actions.compare db_file1 db_file2))
-  >>>= Views.render_rounds_diff request
+  >| Views.render_rounds_diff request
 
+(* TODO: Clean up *)
 let handle_round_action_dispatcher ctx request =
   match%lwt Dream.form request with
   | `Ok (("action_kind", action_kind)::params) -> begin
