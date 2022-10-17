@@ -252,7 +252,7 @@ module Problem_diff = struct
           p1.errcode as @Errcode{errcode_1}, \
           p2.errcode as @Errcode{errcode_2}, \
           p1.rtime as @float{rtime_1}, \
-          p1.rtime as @float{rtime_2} \
+          p2.rtime as @float{rtime_2} \
         FROM main.prover_res as p1, other.prover_res as p2 \
         WHERE p1.file = p2.file\
       " record_out]
