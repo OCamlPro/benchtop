@@ -6,6 +6,8 @@
    views
    error
    handlers
+   context
+   syntax
    file
    models
    round
@@ -22,7 +24,7 @@
    fmt
    inotify.lwt
    ppx_rapper_lwt)
- (preprocess (pps lwt_ppx tyxml-ppx ppx_rapper)))
+ (preprocess (pps tyxml-ppx ppx_rapper)))
 
 (generate_sites_module
   (module location)

@@ -1,3 +1,5 @@
+open Syntax
+
 type 'a answer = ('a, Error.t) Lwt_result.t
 type 'a request = Caqti_lwt.connection -> 'a answer
 
@@ -20,7 +22,7 @@ let retrieve ~db_file ?db_attached req =
     | None -> Caqti_lwt.connect db_uri >>= req
     | Some db_attached_path -> 
         let con = Caqti_lwt.connect db_uri in
-        let%lwt _ = con >>= attach db_attached_path in 
+        let* _ = con >>= attach db_attached_path in 
         con >>= req 
   in
   Lwt_result.bind_lwt_error ans (fun err ->

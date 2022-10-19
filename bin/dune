@@ -1,5 +1,4 @@
 (executable
  (public_name benchtop)
  (name main)
- (libraries benchtop dream lwt cmdliner)
- (preprocess (pps lwt_ppx)))
+ (libraries benchtop dream lwt cmdliner lwt.unix))

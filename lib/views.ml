@@ -66,7 +66,7 @@ end
 
 let navbar ?(collapse_content=[]) content =
   [%html "\
-    <nav class='container-fluid flex-wrap'>\
+    <div class='container-fluid d-wrap flex-row flex-wrap'>\
       <a class='navbar-brand text-primary' href='#'>Benchtop</a>\
       <button class='navbar-toggler' type='button' \
         data-bs-toggle='collapse' data-bs-target='#collapse-content' \
@@ -74,15 +74,25 @@ let navbar ?(collapse_content=[]) content =
         aria-label='Toggle collapse content'>\
         <span class='navbar-toggler-icon'></span>\
       </button>\
-      <div class='collapse navbar-collapse d-flex flex-row \
+      <div class='collapse navbar-collapse \
         justify-content-center' id='collapse-content'>\
         " collapse_content "\
       </div>\
-      <div class='d-flex flex-row flex-grow-1 flex-lg-grow-0 \
+      <div class='flex-grow-1 \
         justify-content-center'>\
         " content "\
       </div>\
-    </nav>\
+      <nav>
+        <ul class='nav nav-tabs'>
+          <li class='nav-item'>
+            <a class='nav-link active' aria-current='page' href='#'>Benchmark</a>
+          </li>
+          <li class='nav-item'>
+            <a class='nav-link' href='#'>Problems</a>
+          </li>
+        </ul>
+      </nav>
+    </div>\
   "]
 
 let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
@@ -344,7 +354,6 @@ let render_rounds_list request ~is_running rounds =
   in
   page_layout ~subtitle:"Rounds" ~hcontent:[navbar] [rounds_table]
   |> Helper.html_to_string
-  |> Lwt_result.return
 
 module Problems_list : sig
   val table : Models.Problem.t list -> Dream.request ->
@@ -471,7 +480,6 @@ let render_round_detail request pbs =
   in
   page_layout ~subtitle:"Round" ~hcontent:[navbar] [table]
   |> Helper.html_to_string
-  |> Lwt_result.return
 
 let render_problem_trace _request (pb : Models.Problem.t) =
   let header = Format.sprintf "Problem %s" (Filename.basename pb.name) in
@@ -524,7 +532,6 @@ let render_problem_trace _request (pb : Models.Problem.t) =
   " in
   page_layout ~subtitle:"Problem trace" [content] 
   |> Helper.html_to_string
-  |> Lwt_result.return
 
 module Problem_diffs_list : sig
   val table : Models.Problem_diff.t list -> Dream.request ->
@@ -615,5 +622,3 @@ let render_rounds_diff request pbs_diff =
   page_layout ~subtitle:"Difference" ~hcontent:[navbar] 
     [table pbs_diff request]
   |> Helper.html_to_string
-  |> Lwt_result.return
-

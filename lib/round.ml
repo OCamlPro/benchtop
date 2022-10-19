@@ -1,3 +1,5 @@
+open Syntax
+
 module Process : sig
   type t = private {
     inotify: Lwt_inotify.t;
@@ -26,14 +28,14 @@ end = struct
       String.equal (Filename.extension file) ".sqlite"
     in
     fun inotify ->
-    match%lwt Lwt_inotify.read inotify with
-      | (_, [Inotify.Create], _, Some file) when is_db file -> 
-          Lwt_result.return file
-      | _ -> wait_db_file inotify
+      Lwt_inotify.read inotify 
+      >>= function
+        | (_, [Inotify.Create], _, Some file) when is_db file -> 
+            Lwt_result.return file
+        | _ -> wait_db_file inotify
 
   let wait_terminate handler = 
-    let%lwt rc = handler#status in
-    Lwt_result.fail rc
+    handler#status >|= fun rc -> Error rc
 
   let create_temp_file suffix =
     let file = Filename.temp_file "benchpress" suffix in
@@ -42,8 +44,8 @@ end = struct
 
   let run ~cmd ~config =
     ignore config;
-    let%lwt inotify = Lwt_inotify.create () in
-    let%lwt _ = 
+    let* inotify = Lwt_inotify.create () in
+    let* _ = 
       Lwt_inotify.add_watch inotify Options.benchpress_share_dir 
         [Inotify.S_Create] 
     in
@@ -53,8 +55,8 @@ end = struct
     let handler = Lwt_process.open_process_none ~stdout:(`FD_copy stdout_fd) 
       ~stderr:(`FD_copy stderr_fd) cmd in
     Dream.info (fun log -> log "Running benchpress");
-    match%lwt Lwt.choose [wait_db_file inotify; 
-        wait_terminate handler] with
+    Lwt.choose [wait_db_file inotify; wait_terminate handler] 
+    >>= function
       | Ok db_file -> 
           Dream.info (fun log -> log "Found the database %s" db_file);
           Lwt_result.return {inotify; stdout; stderr; handler; db_file}
@@ -74,7 +76,7 @@ end = struct
 
   let stop {handler; stdout; stderr; db_file; _} = 
     handler#terminate;
-    let%lwt rc = handler#status in
+    let* rc = handler#status in
     In_channel.close stdout;
     In_channel.close stderr;
     Unix.unlink db_file;
@@ -114,16 +116,14 @@ let make ~cmd ~config =
   {config; date = now (); status} 
 
 let retrieve_info db_file =
-  let request_summary = 
+  let* summary = 
     Models.retrieve ~db_file 
       (Models.Round_summary.retrieve ()) 
-  in
-  let request_provers = 
+  and* provers = 
     Models.retrieve ~db_file 
       (Models.Prover.select ~name:None ~version:None)
   in
-  let%lwt date, status = 
-    match%lwt Lwt.both request_summary request_provers with 
+  let* date, status = match (summary, provers) with
   | Ok (summary : Models.Round_summary.t), 
     Ok (provers : Models.Prover.t list) -> 
       Lwt.return (summary.running_at, Done {db_file; summary; provers})
@@ -137,9 +137,10 @@ let resurect ~db_file = retrieve_info db_file
 let run round = 
   match round.status with
   | Pending susp -> begin
-      let%lwt status = match%lwt Lazy.force susp with
-      | Ok proc -> Lwt.return (Running proc)
-      | Error err -> Lwt.return (Failed err)
+      let* status = 
+        Lazy.force susp >|= function
+        | Ok proc -> Running proc
+        | Error err -> Failed err
       in
       Lwt.return {round with date = now(); status}
     end
@@ -156,8 +157,8 @@ let update round =
 let stop round =
   match round.status with
   | Running proc when not @@ Process.is_done proc -> 
-      let%lwt rc = Process.stop proc in
-      Lwt.return {round with date = now (); status = Failed (`Stopped rc)}
+      Process.stop proc
+      >|= fun rc -> {round with date = now (); status = Failed (`Stopped rc)}
   | Pending _ | Running _ | Failed _ | Done _ -> Lwt.return round 
 
 let db_file round =
