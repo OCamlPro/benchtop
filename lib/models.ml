@@ -15,18 +15,12 @@ let retrieve ~db_file ?db_attached req =
     Format.sprintf "sqlite3://%s" db_file_path
     |> Uri.of_string
   in
-  let ans = 
-    match db_attached_path with
-    | None -> Caqti_lwt.connect db_uri >>? req
-    | Some db_attached_path -> 
-        let con = Caqti_lwt.connect db_uri in
-        let* _ = con >>? attach db_attached_path in 
-        con >>? req 
-  in
-  Lwt_result.bind_lwt_error ans (fun err ->
-    (*Dream.error (fun log -> log "%a" Error.pp err);*)
-    Lwt.return err
-  )
+  match db_attached_path with
+  | None -> Caqti_lwt.connect db_uri >>? req
+  | Some db_attached_path -> 
+      let con = Caqti_lwt.connect db_uri in
+      let* _ = con >>? attach db_attached_path in 
+      con >>? req 
 
 module Fields = struct
   module Res = struct

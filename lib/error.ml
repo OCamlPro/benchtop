@@ -36,7 +36,7 @@ type t = [
   | form
 ]
 
-let pp =
+let pp : 'a. ([< t] as 'a) Misc.printer =
   fun fmt -> function
     | #Caqti_error.t as err -> Caqti_error.pp fmt err
     | _ -> failwith "not implemented yet"

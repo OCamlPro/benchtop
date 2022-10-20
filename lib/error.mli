@@ -36,4 +36,4 @@ type t = [
   | form
 ]
 
-val pp : [> t] Misc.printer
+val pp : [< t] Misc.printer

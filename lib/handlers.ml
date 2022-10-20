@@ -2,7 +2,7 @@ open Syntax
 
 module Helper : sig
   val view_or_error_to_response : 
-    (string, [> Error.t]) result -> Dream.response Lwt.t
+    (string, [< Error.t]) result -> Dream.response Lwt.t
 
   val look_up_get_opt_param : 
     string -> 
@@ -17,7 +17,7 @@ module Helper : sig
   val look_up_param :
     string ->
     Dream.request ->
-    (string, Error.t) result
+    (string, [> Error.t]) result
 end = struct
   let view_or_error_to_response = function
     | Ok view -> Dream.html view
@@ -91,7 +91,7 @@ let handle_problem_trace request =
   let ctx = Context.retrieve request in
   let uuid = Dream.param request "uuid" in
   let name = Dream.param request "problem" 
-    |> Dream.from_base64url |> Option.to_result ~none:`Not_found 
+    |> Dream.from_base64url |> Option.to_result ~none:(`Key_not_found "problem")
   in
   let*? round = Rounds_queue.find_by_uuid uuid ctx.queue 
   and*? name = Lwt.return name in 
