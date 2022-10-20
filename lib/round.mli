@@ -1,8 +1,10 @@
 type pending
 type running
 
-module Process : sig 
-  type t = private {
+module Process : sig
+  type t
+
+  type trace = private {
     inotify: Lwt_inotify.t;
     handler: Lwt_process.process_none;
     stdout: in_channel;
@@ -10,17 +12,19 @@ module Process : sig
     db_file: string;
   }
 
-  val run : cmd:Lwt_process.command -> config:string ->
-    (t, Error.t) Lwt_result.t
-  val stop : t -> Unix.process_status Lwt.t
-  val is_done : t -> bool 
-  val db_file : t -> string
+  val make :
+    cmd:Lwt_process.command ->
+    config:string ->
+    t
+
+  val run : t -> (trace, Error.t) Lwt_result.t
+  val stop : trace -> Unix.process_status Lwt.t
+  val is_done : trace -> bool
 end
 
 type status = private
-  | Pending of pending
-  | Running of Process.t
-  | Failed of Error.t
+  | Pending of Process.t
+  | Running of Process.trace
   | Done of {
     db_file: string;
     summary: Models.Round_summary.t;
@@ -34,10 +38,10 @@ type t = private {
 }
 
 val make : cmd:Lwt_process.command -> config:string -> t
-val resurect : db_file:string -> t Lwt.t
-val run : t -> t Lwt.t
-val update : t -> t Lwt.t
-val stop : t -> t Lwt.t
+val resurect : db_file:string -> (t, Error.t) Lwt_result.t
+val run : t -> (t, Error.t) Lwt_result.t
+val update : t -> (t, Error.t) Lwt_result.t
+val stop : t -> (t, Error.t) Lwt_result.t
 val db_file : t -> (string, Error.t) Result.t
 val is_done : t -> bool
 

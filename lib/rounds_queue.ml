@@ -1,7 +1,7 @@
 open Syntax
 
 type t = {
-  lst: Round.t list;
+  lst: (Round.t, Error.t) result list;
   pos: int option
 }
 
@@ -15,18 +15,19 @@ let make ~dir =
 
 let rec update {lst; pos} =
   let new_pos = ref pos in
-  Lwt_list.mapi_s (fun j (round : Round.t) ->
-    match (pos, round.status) with
+  (*Lwt_list.mapi_s (fun j round ->
+    Result.bind round 
+    (fun (round : Round.t) -> match (pos, round.status) with
     | Some i, Pending _ when i = j ->
         Round.run round
-    | Some i, Done _ | Some i, Failed _ when i = j ->
+    | Some i, Done _ when i = j ->
         new_pos := if i > 0 then Some (i-1) else None;
         Round.update round
-    | _ -> Round.update round) lst
+    | _ -> Round.update round)) lst
   >>= fun lst ->
     if pos <> !new_pos then
       update {lst; pos = !new_pos}
-    else
+    else*)
       Lwt_result.return {lst; pos = !new_pos}
 
 let push round {lst; pos} =
@@ -35,16 +36,27 @@ let push round {lst; pos} =
     | Some i -> Some (i+1)
     | None -> Some 0
   in
-  {lst = round :: lst; pos}
+  {lst = (Ok round) :: lst; pos}
 
 let find_by_uuid uuid {lst; _} =
-  List.find_opt (fun (round : Round.t) ->
-    match round.status with
-    | Done {summary; _} -> String.equal uuid summary.uuid
-    | Pending _ | Running _ | Failed _ -> false) lst
-  |> (fun v -> Lwt.return @@ Option.to_result ~none:`Not_found v)
+  let opt = List.find_opt (fun round ->
+    match round with
+    | Ok (round : Round.t) -> begin
+        match round.status with
+        | Done {summary; _} -> String.equal uuid summary.uuid
+        | Pending _ | Running _ -> false
+      end
+    | Error _ -> false) lst
+  in
+  match opt with
+  | Some res -> res 
+  | None -> Error `Not_found
 
 let is_running {lst; pos} =
   match pos with
-  | Some i -> not @@ Round.is_done (List.nth lst i)
+  | Some i -> begin
+      match List.nth lst i with
+      | Ok round -> not @@ Round.is_done round
+      | Error _ -> false
+    end
   | None -> false

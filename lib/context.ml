@@ -14,7 +14,6 @@ let middleware ctx inner_handler request =
   Dream.set_field request field ctx; 
   inner_handler request
 
-
 let retrieve request = 
   match Dream.field request field with
   | Some ctx -> ctx

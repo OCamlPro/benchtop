@@ -265,7 +265,7 @@ let benchpress_form request ~is_running =
   "]
 
 module Rounds_list : sig
-  val table : Round.t list -> [> Html_types.tablex] Tyxml.Html.elt
+  val table : (Round.t, Error.t) result list -> [> Html_types.tablex] Tyxml.Html.elt
   val action_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
 end = struct 
   let format_status (round : Round.t) =
@@ -275,11 +275,10 @@ end = struct
     | Done {summary; _} ->
         let url = "round/" ^ summary.uuid in
         Html.(a ~a:[a_href url] [txt "Done"])
-    | Failed _ -> Html.txt "Error"
  
   let format_provers (round : Round.t) =
     match round.status with
-    | Pending _ | Running _ | Failed _ -> Html.txt ""
+    | Pending _ | Running _ -> Html.txt ""
     | Done {provers; _} ->
       (* let pp fmt el = Format.fprintf fmt "%s" el in *)
       (*let provers = List.map fst info.provers |> sprintf_list pp in*)
@@ -287,7 +286,7 @@ end = struct
  
   let format_uuid (round : Round.t) =
     match round.status with
-    | Pending _ | Running _ | Failed _ -> Html.txt ""
+    | Pending _ | Running _ -> Html.txt ""
     | Done {summary; _} ->
         Html.txt summary.uuid
   
@@ -297,27 +296,41 @@ end = struct
     | Done {summary; _} ->
         let str = Format.sprintf "%i/%i" summary.ctr_suc_pbs summary.ctr_pbs in
         Html.txt str
-    | Failed _ -> Html.txt "Error"
  
-  let row ~number (round : Round.t) =
-    let date = round.date |> Helper.format_date in
-    let check_selector =
-      match round.status with
-      | Pending _ | Running _ | Failed _ -> []
-      | Done {summary; _} ->
+  let row ~number round =
+    match round with 
+    | Ok (round : Round.t) -> begin
+      let date = round.date |> Helper.format_date in
+      let check_selector =
+        match round.status with
+        | Pending _ | Running _ -> []
+        | Done {summary; _} ->
           [check_selector ~number (Dream.to_base64url summary.uuid)]
-    in
-    [%html "\
-      <tr>\
-        <th>" check_selector "</th>\
-        <td>" [format_provers round] "</td>\
-        <td>" [format_uuid round] "</td>\
-        <td class='text-center'>" [Html.txt round.config] "</td>\
-        <td class='text-center'>" [Html.txt date] "</td>\
-        <td class='text-center'>" [format_result round] "</td>\
-        <td class='text-center'>" [format_status round] "</td>\
-      </tr>\
-    "]
+      in
+      [%html "\
+        <tr>\
+          <th>" check_selector "</th>\
+          <td>" [format_provers round] "</td>\
+          <td>" [format_uuid round] "</td>\
+          <td class='text-center'>" [Html.txt round.config] "</td>\
+          <td class='text-center'>" [Html.txt date] "</td>\
+          <td class='text-center'>" [format_result round] "</td>\
+          <td class='text-center'>" [format_status round] "</td>\
+        </tr>\
+      "]
+    end
+    | Error _ -> 
+      [%html "\
+        <tr>\
+          <th></th>\
+          <td>"  "</td>\
+          <td>"  "</td>\
+          <td class='text-center'>"  "</td>\
+          <td class='text-center'>"  "</td>\
+          <td class='text-center'>"  "</td>\
+          <td class='text-center'>"  "</td>\
+        </tr>\
+      "]
 
   let table rounds =
     let rows = List.mapi (fun i round -> row ~number:i round ) rounds in

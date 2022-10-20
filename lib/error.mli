@@ -1,6 +1,7 @@
 type sql_error = Caqti_error.t 
 
 type process_error = [
+  | `Is_running
   | `Stopped of Unix.process_status
   | `Db_not_found of Unix.process_status 
 ]

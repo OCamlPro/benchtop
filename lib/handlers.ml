@@ -43,8 +43,8 @@ let handle_rounds_list request = (
   let ctx = Context.retrieve request in
   let+? queue = Rounds_queue.update ctx.queue in
   ctx.queue <- queue;
-  let queue = Rounds_queue.to_list queue
-  and is_running = Rounds_queue.is_running queue in
+  let is_running = Rounds_queue.is_running queue
+  and queue = Rounds_queue.to_list queue in
   Views.render_rounds_list request ~is_running queue) 
   >>= Helper.view_to_response
 
@@ -52,7 +52,7 @@ let handle_rounds_list request = (
 let handle_round_detail request = (
   let ctx = Context.retrieve request in
   let uuid = Dream.param request "uuid" in
-  let*? round = Rounds_queue.find_by_uuid uuid ctx.queue in
+  let*? round = Lwt.return @@ Rounds_queue.find_by_uuid uuid ctx.queue in
   let name = Helper.look_up_get_param "name" request in
   let (>>) f g = Option.bind f g in
   let res = 
@@ -83,7 +83,7 @@ let handle_problem_trace request = (
   let name = Dream.param request "problem" 
     |> Dream.from_base64url |> Option.to_result ~none:`Not_found 
   in
-  let*? round = Rounds_queue.find_by_uuid uuid ctx.queue 
+  let*? round = Lwt.return @@ Rounds_queue.find_by_uuid uuid ctx.queue 
   and*? name = Lwt.return name in 
   let+? pb = Round.problem ~name round in
   Views.render_problem_trace request pb)
@@ -123,8 +123,8 @@ let handle_rounds_diff request = (
   let ctx = Context.retrieve request in
   let uuid1 = Dream.param request "uuid1" in
   let uuid2 = Dream.param request "uuid2" in
-  let*? round1 = Rounds_queue.find_by_uuid uuid1 ctx.queue
-  and*? round2 = Rounds_queue.find_by_uuid uuid2 ctx.queue in
+  let*? round1 = Lwt.return @@ Rounds_queue.find_by_uuid uuid1 ctx.queue
+  and*? round2 = Lwt.return @@ Rounds_queue.find_by_uuid uuid2 ctx.queue in
   let*? db_file1 = Lwt.return @@ Round.db_file round1 
   and*? db_file2 = Lwt.return @@ Round.db_file round2 in
   let+? pb_diffs = Actions.compare db_file1 db_file2 in
