@@ -1,9 +1,7 @@
 open Syntax
 
 module Process : sig
-  type t
-
-  type trace = private {
+  type t = private {
     inotify: Lwt_inotify.t;
     handler: Lwt_process.process_none;
     stdout: in_channel;
@@ -11,24 +9,21 @@ module Process : sig
     db_file: string;
   }
 
-  val make :
+  val run :
     cmd:Lwt_process.command ->
     config:string ->
-    t
+     (t, [> Error.process]) Lwt_result.t
 
-  val run : t -> (trace, Error.t) Lwt_result.t
-  val stop : trace -> Unix.process_status Lwt.t
-  val is_done : trace -> bool
+  val stop : t -> Unix.process_status Lwt.t
+  val is_done : t -> bool
 end = struct
-  type trace = {
+  type t = {
     inotify: Lwt_inotify.t;
     handler: Lwt_process.process_none;
     stdout: in_channel;
     stderr: in_channel;
     db_file: string;
   }
-
-  type t = (trace, Error.t) Lwt_result.t
 
   let rec wait_db_file =
     let is_db file =
@@ -49,7 +44,7 @@ end = struct
     let fd = Unix.openfile file [O_RDWR] 0o640 in
     (fd, Unix.in_channel_of_descr fd)
 
-  let make ~cmd ~config =
+  let run ~cmd ~config =
     ignore config;
     let* inotify = Lwt_inotify.create () in
     let* _ =
@@ -79,9 +74,7 @@ end = struct
             Misc.pp_error_code rc
             (File.read_all stdout)
             (File.read_all stderr));
-          Lwt_result.fail (`Db_not_found rc)
-
-  let run proc = proc
+          Lwt_result.fail `Db_not_found
 
   let stop {handler; stdout; stderr; db_file; _} =
     handler#terminate;
@@ -98,12 +91,9 @@ end
 
 let now () = Unix.time () |> Unix.localtime
 
-type pending = (Process.t, Error.t) Lwt_result.t
-type running = Process.t
-
 type status =
-  | Pending of Process.t
-  | Running of Process.trace
+  | Pending
+  | Running of Process.t
   | Done of {
     db_file: string;
     summary: Models.Round_summary.t;
@@ -111,14 +101,14 @@ type status =
   }
 
 type t = {
+  cmd: Lwt_process.command;
   config: string;
   date: Unix.tm;
   status: status
 }
 
 let make ~cmd ~config =
-  let status = Pending (Process.make ~cmd ~config) in
-  {config; date = now (); status}
+  {cmd; config; date = now (); status = Pending}
 
 let retrieve_info ~db_file =
   let+? summary =
@@ -131,57 +121,57 @@ let retrieve_info ~db_file =
   let date, status =
     (summary.running_at, Done {db_file; summary; provers})
   in
-  {config = "default"; date; status}
+  {cmd = ("",[||]); config = "default"; date; status}
 
 let resurect ~db_file = retrieve_info ~db_file
 
-let run round =
-  match round.status with
-  | Pending susp -> begin
-      let+? trace = Process.run susp in
-      {round with date = now (); status = Running trace}
+let run ({cmd; config; status; _} as round) =
+  match status with
+  | Pending -> begin
+      let+? proc = Process.run ~cmd ~config in
+      {round with date = now (); status = Running proc}
     end
   | Running _ | Done _ -> Lwt_result.fail `Is_running
 
-let update round =
-  match round.status with
+let update ({status; _} as round) =
+  match status with
   | Running ({db_file; _} as trace) ->
     if Process.is_done trace then
       retrieve_info ~db_file
     else Lwt_result.return round
-  | Pending _ | Done _ -> Lwt_result.return round
+  | Pending | Done _ -> Lwt_result.return round
 
-let stop round =
-  match round.status with
+let stop ({status; _} as round) =
+  match status with
   | Running trace when not @@ Process.is_done trace ->
       let+ rc = Process.stop trace in
       Error (`Stopped rc)
-  | Pending _ | Running _ | Done _ -> Lwt_result.return round
+  | Pending | Running _ | Done _ -> Lwt_result.return round
 
-let db_file round =
-  match round.status with
-  | Pending _ | Running _ -> Error `Not_found
-  | Done {db_file; _} -> Ok db_file
+let db_file {status; _} =
+  match status with
+  | Pending | Running _ -> Lwt_result.fail `Db_not_found
+  | Done {db_file; _} -> Lwt_result.return db_file
 
-let is_done round =
-  match round.status with
-  | Pending _ -> false
+let is_done {status; _} =
+  match status with
+  | Pending -> false
   | Running proc -> Process.is_done proc
   | Done _ -> true
 
-let problem ~name round =
-  match round.status with
+let problem ~name {status; _} =
+  match status with
   | Done {db_file; _} ->
       Models.retrieve ~db_file
       (Models.Problem.select_one ~name)
-  | Pending _ | Running _ ->
+  | Pending | Running _ ->
       Lwt_result.fail `Not_done
 
-let problems ?(only_diff=false) ?name ?res ?expected_res ?errcode round =
-  match round.status with
+let problems ?(only_diff=false) ?name ?res ?expected_res ?errcode {status; _} =
+  match status with
   | Done {db_file; _} -> 
       Models.retrieve ~db_file
       (Models.Problem.select ~name ~res ~expected_res ~errcode ~only_diff)
-  | Pending _ | Running _ -> 
+  | Pending | Running _ -> 
       Lwt_result.fail `Not_done
 

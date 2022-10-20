@@ -15,20 +15,18 @@ let make ~dir =
 
 let rec update {lst; pos} =
   let new_pos = ref pos in
-  (*Lwt_list.mapi_s (fun j round ->
-    Result.bind round 
-    (fun (round : Round.t) -> match (pos, round.status) with
-    | Some i, Pending _ when i = j ->
-        Round.run round
-    | Some i, Done _ when i = j ->
-        new_pos := if i > 0 then Some (i-1) else None;
-        Round.update round
-    | _ -> Round.update round)) lst
-  >>= fun lst ->
-    if pos <> !new_pos then
-      update {lst; pos = !new_pos}
-    else*)
-      Lwt_result.return {lst; pos = !new_pos}
+  let lst = List.mapi (fun j round ->
+    Lwt.return round >>? fun ({status; _} as round : Round.t) ->
+      match (pos, status) with 
+      | Some i, Pending when i = j ->
+          Round.run round
+      | Some i, Done _ when i = j ->
+          new_pos := if i > 0 then Some (i-1) else None;
+          Round.update round
+      | _ -> Round.update round
+  ) lst in
+  let+ lst = Lwt.all lst in 
+  {lst; pos = !new_pos}
 
 let push round {lst; pos} =
   let pos = 
@@ -39,18 +37,19 @@ let push round {lst; pos} =
   {lst = (Ok round) :: lst; pos}
 
 let find_by_uuid uuid {lst; _} =
-  let opt = List.find_opt (fun round ->
-    match round with
-    | Ok (round : Round.t) -> begin
-        match round.status with
-        | Done {summary; _} -> String.equal uuid summary.uuid
-        | Pending _ | Running _ -> false
-      end
-    | Error _ -> false) lst
+  let lst = 
+    List.partition_map (function 
+    | Ok x -> Left x
+    | Error err -> Right err) lst 
+    |> fst
   in
-  match opt with
-  | Some res -> res 
-  | None -> Error `Not_found
+  List.find_opt (fun (round : Round.t) ->
+    match round.status with
+      | Done {summary; _} -> String.equal uuid summary.uuid
+      | Pending | Running _ -> false
+  ) lst
+  |> Option.to_result ~none:`Round_not_found
+  |> Lwt.return
 
 let is_running {lst; pos} =
   match pos with

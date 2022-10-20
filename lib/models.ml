@@ -1,7 +1,6 @@
 open Syntax
 
-type 'a answer = ('a, Error.t) Lwt_result.t
-type 'a request = Caqti_lwt.connection -> 'a answer
+type ('a, 'b) request = Caqti_lwt.connection -> ('a, 'b) Lwt_result.t
 
 let attach db_path (module Db : Caqti_lwt.CONNECTION) =
   let open Caqti_request.Infix in
@@ -9,7 +8,6 @@ let attach db_path (module Db : Caqti_lwt.CONNECTION) =
   Db.exec (string ->. unit @@ "attach database ? as other") db_path
 
 let retrieve ~db_file ?db_attached req =
-  let open Lwt_result.Infix in
   let prefix = Filename.concat Options.benchpress_share_dir in
   let db_file_path = prefix db_file in
   let db_attached_path = Option.map prefix db_attached in
@@ -19,14 +17,14 @@ let retrieve ~db_file ?db_attached req =
   in
   let ans = 
     match db_attached_path with
-    | None -> Caqti_lwt.connect db_uri >>= req
+    | None -> Caqti_lwt.connect db_uri >>? req
     | Some db_attached_path -> 
         let con = Caqti_lwt.connect db_uri in
-        let* _ = con >>= attach db_attached_path in 
-        con >>= req 
+        let* _ = con >>? attach db_attached_path in 
+        con >>? req 
   in
   Lwt_result.bind_lwt_error ans (fun err ->
-    Dream.error (fun log -> log "%a" Error.pp err);
+    (*Dream.error (fun log -> log "%a" Error.pp err);*)
     Lwt.return err
   )
 

@@ -270,15 +270,15 @@ module Rounds_list : sig
 end = struct 
   let format_status (round : Round.t) =
     match round.status with
-    | Pending _  -> Html.txt "Pending"
-    | Running _  -> Html.txt "Running"
+    | Pending -> Html.txt "Pending"
+    | Running _ -> Html.txt "Running"
     | Done {summary; _} ->
         let url = "round/" ^ summary.uuid in
         Html.(a ~a:[a_href url] [txt "Done"])
  
   let format_provers (round : Round.t) =
     match round.status with
-    | Pending _ | Running _ -> Html.txt ""
+    | Pending | Running _ -> Html.txt ""
     | Done {provers; _} ->
       (* let pp fmt el = Format.fprintf fmt "%s" el in *)
       (*let provers = List.map fst info.provers |> sprintf_list pp in*)
@@ -286,13 +286,13 @@ end = struct
  
   let format_uuid (round : Round.t) =
     match round.status with
-    | Pending _ | Running _ -> Html.txt ""
+    | Pending | Running _ -> Html.txt ""
     | Done {summary; _} ->
         Html.txt summary.uuid
   
   let format_result (round : Round.t) =
     match round.status with
-    | Pending _ | Running _ -> Html.txt "Not yet"
+    | Pending | Running _ -> Html.txt "Not yet"
     | Done {summary; _} ->
         let str = Format.sprintf "%i/%i" summary.ctr_suc_pbs summary.ctr_pbs in
         Html.txt str
@@ -303,7 +303,7 @@ end = struct
       let date = round.date |> Helper.format_date in
       let check_selector =
         match round.status with
-        | Pending _ | Running _ -> []
+        | Pending | Running _ -> []
         | Done {summary; _} ->
           [check_selector ~number (Dream.to_base64url summary.uuid)]
       in

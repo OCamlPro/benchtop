@@ -1,8 +1,10 @@
-type 'a answer = ('a, Error.t) Lwt_result.t
-type 'a request = Caqti_lwt.connection -> 'a answer 
+type ('a, 'b) request = Caqti_lwt.connection -> ('a, 'b) Lwt_result.t
 
-val retrieve : db_file:string -> ?db_attached:string -> 
-  'a request -> 'a answer
+val retrieve :
+  db_file:string ->
+  ?db_attached:string ->
+  ('a, [> Caqti_error.t] as 'b) request ->
+  ('a, 'b) Lwt_result.t
 
 module Fields : sig 
   module Res : sig 
@@ -39,12 +41,12 @@ module Prover : sig
   val select : 
     name: string option ->
     version: string option ->
-    t list request
+    (t list, [> Error.sql]) request
 
   val select_one : 
     name: string ->
     version: string option ->
-    t request
+    (t, [> Error.sql]) request
 end
 
 module Problem : sig
@@ -70,11 +72,11 @@ module Problem : sig
     expected_res:Res.t option -> 
     errcode:Errcode.t option -> 
     only_diff:bool ->
-    t list request
+    (t list, [> Error.sql]) request
 
   val select_one : 
     name:string -> 
-    t request
+    (t, [> Error.sql]) request
 end
 
 module Round_summary : sig
@@ -87,7 +89,7 @@ module Round_summary : sig
     ctr_suc_pbs: int
   }
 
-  val retrieve : unit -> t request
+  val retrieve : unit -> (t, [> Error.sql]) request
 end
 
 module Problem_diff : sig
@@ -107,5 +109,5 @@ module Problem_diff : sig
     rtime_2: float
   }
 
-  val select : unit -> t list request 
+  val select : unit -> (t list, [> Error.sql]) request 
 end 

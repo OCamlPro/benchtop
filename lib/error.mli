@@ -1,18 +1,20 @@
-type sql_error = Caqti_error.t 
+type sql = Caqti_error.t 
 
-type process_error = [
+type process = [
   | `Is_running
   | `Stopped of Unix.process_status
-  | `Db_not_found of Unix.process_status 
+  | `Db_not_found
 ]
 
-type round_error = [
-  | `Not_found
+type round = [
+  | sql
+  | process
+  | `Round_not_found
   | `Cannot_retrieve_info of string
   | `Not_done
 ]
 
-type form_error = [
+type form = [
   | `Expired of (string * string) list * float
   | `Wrong_session of (string * string) list
   | `Invalid_token of (string * string) list
@@ -21,16 +23,17 @@ type form_error = [
   | `Wrong_content_type
 ]
 
-type handler_error = [
+type param = [
+  | form
   | `Key_not_found of string
 ]
 
-type t = [ 
-  | sql_error
-  | process_error 
-  | round_error 
-  | handler_error 
-  | form_error
+type t = [
+  | sql
+  | process
+  | round
+  | param
+  | form
 ]
 
-val pp : t Misc.printer
+val pp : [> t] Misc.printer

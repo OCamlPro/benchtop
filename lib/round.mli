@@ -1,10 +1,5 @@
-type pending
-type running
-
 module Process : sig
-  type t
-
-  type trace = private {
+  type t = private {
     inotify: Lwt_inotify.t;
     handler: Lwt_process.process_none;
     stdout: in_channel;
@@ -12,19 +7,18 @@ module Process : sig
     db_file: string;
   }
 
-  val make :
+  val run :
     cmd:Lwt_process.command ->
     config:string ->
-    t
+     (t, [> Error.process]) Lwt_result.t
 
-  val run : t -> (trace, Error.t) Lwt_result.t
-  val stop : trace -> Unix.process_status Lwt.t
-  val is_done : trace -> bool
+  val stop : t -> Unix.process_status Lwt.t
+  val is_done : t -> bool
 end
 
 type status = private
-  | Pending of Process.t
-  | Running of Process.trace
+  | Pending
+  | Running of Process.t
   | Done of {
     db_file: string;
     summary: Models.Round_summary.t;
@@ -32,23 +26,24 @@ type status = private
   }
 
 type t = private {
+  cmd: Lwt_process.command;
   config: string;
   date: Unix.tm;
   status: status
 }
 
 val make : cmd:Lwt_process.command -> config:string -> t
-val resurect : db_file:string -> (t, Error.t) Lwt_result.t
-val run : t -> (t, Error.t) Lwt_result.t
-val update : t -> (t, Error.t) Lwt_result.t
-val stop : t -> (t, Error.t) Lwt_result.t
-val db_file : t -> (string, Error.t) Result.t
+val resurect : db_file:string -> (t, [> Error.round]) Lwt_result.t
+val run : t -> (t, [> Error.round]) Lwt_result.t
+val update : t -> (t, [> Error.round]) Lwt_result.t
+val stop : t -> (t, [> Error.round]) Lwt_result.t
+val db_file : t -> (string, [> Error.round]) Lwt_result.t
 val is_done : t -> bool
 
 val problem:
   name:string ->
   t ->
-  (Models.Problem.t, Error.t) Lwt_result.t
+    (Models.Problem.t, [> Error.round]) Lwt_result.t
 
 val problems :
   ?only_diff: bool ->
@@ -56,4 +51,4 @@ val problems :
   ?res: Models.Fields.Res.t ->
   ?expected_res: Models.Fields.Res.t ->
   ?errcode: Models.Fields.Errcode.t ->
-  t -> (Models.Problem.t list, Error.t) Lwt_result.t
+  t -> (Models.Problem.t list, [> Error.round]) Lwt_result.t
