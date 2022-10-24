@@ -36,7 +36,7 @@ let push round {lst; pos} =
   in
   {lst = (Ok round) :: lst; pos}
 
-let find_by_uuid uuid {lst; _} =
+let find_by_uuid {lst; _} uuid =
   let lst = 
     List.partition_map (function 
     | Ok x -> Left x

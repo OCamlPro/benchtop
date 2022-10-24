@@ -63,7 +63,6 @@ let handle_rounds_list request =
 let handle_round_detail request =
   Helper.view_or_error_to_response =<<
   let ctx = Context.retrieve request in
-  let uuid = Dream.param request "uuid" in
   let name = Helper.look_up_get_opt_param request "name" in
   let res = Option.bind
     (Helper.look_up_get_opt_param request "res") 
@@ -81,7 +80,8 @@ let handle_round_detail request =
     Helper.look_up_get_opt_param request "only_diff"
     |> Option.is_some
   in
-  Rounds_queue.find_by_uuid uuid ctx.queue 
+  Helper.look_up_param request "uuid"
+  >>? Rounds_queue.find_by_uuid ctx.queue
   >>? Round.problems ?name ?res ?expected_res ?errcode ~only_diff
   >|? Views.render_round_detail request
 
@@ -90,10 +90,9 @@ let handle_problem_trace request =
   let ctx = Context.retrieve request in
   let*? uuid = Helper.look_up_param request "uuid"
   and*? name = Helper.look_up_param request "problem" in
-  Rounds_queue.find_by_uuid uuid ctx.queue
+  Rounds_queue.find_by_uuid ctx.queue uuid
   >>? Round.problem ~name
   >|? Views.render_problem_trace request
-
 
 let handle_schedule_round request = 
   let ctx = Context.retrieve request in
@@ -126,14 +125,15 @@ module Actions = struct
 end
 
 let handle_rounds_diff request = 
-  Helper.view_or_error_to_response =<<
   let ctx = Context.retrieve request in
-  let uuid1 = Dream.param request "uuid1" in
-  let uuid2 = Dream.param request "uuid2" in
-  let*? round1 = Rounds_queue.find_by_uuid uuid1 ctx.queue in
-  let*? round2 = Rounds_queue.find_by_uuid uuid2 ctx.queue in
-  let*? db_file1 = Round.db_file round1 
-  and*? db_file2 = Round.db_file round2 in
+  let get_db_file uuid =
+    Helper.look_up_param request uuid
+    >>? Rounds_queue.find_by_uuid ctx.queue
+    >>? Round.db_file
+  in
+  Helper.view_or_error_to_response =<<
+  let*? db_file1 = get_db_file "uuid1"
+  and*? db_file2 = get_db_file "uuid2" in
   Actions.compare db_file1 db_file2
   >|? Views.render_rounds_diff request
 
