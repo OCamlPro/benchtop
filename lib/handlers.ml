@@ -5,19 +5,19 @@ module Helper : sig
     (string, [< Error.t]) result -> Dream.response Lwt.t
 
   val look_up_get_opt_param : 
-    string -> 
     Dream.request -> 
+    string -> 
     string option 
 
-  val look_up_post_param : 
-    string -> 
+  (*val look_up_post_param : 
     Dream.request -> 
-    (string, [> Error.param]) Lwt_result.t
+    string -> 
+    (string, [> Error.param]) Lwt_result.t*)
 
   val look_up_param :
-    string ->
     Dream.request ->
-    (string, [> Error.t]) result
+    string ->
+    (string, [> Error.param]) Lwt_result.t
 end = struct
   let view_or_error_to_response = function
     | Ok view -> Dream.html view
@@ -26,13 +26,13 @@ end = struct
         Dream.html @@ Views.render_error 
           ~msg:(Format.asprintf "%a" Error.pp err)
 
-  let look_up_get_opt_param key request =
+  let look_up_get_opt_param request key =
     let uri = Dream.target request |> Uri.of_string in
     match Uri.get_query_param uri key with 
     | Some value when value <> String.empty -> Some value
     | _ -> None 
 
-  let look_up_post_param key request =
+  (*let look_up_post_param request key =
     Dream.form request >|= function
     | `Ok params -> 
         List.assoc_opt key params 
@@ -42,12 +42,13 @@ end = struct
     | `Invalid_token x -> Error (`Invalid_token x)
     | `Missing_token x -> Error (`Missing_token x)
     | `Many_tokens x -> Error (`Many_tokens x)
-    | `Wrong_content_type -> Error (`Wrong_content_type)
+    | `Wrong_content_type -> Error (`Wrong_content_type)*)
 
-  let look_up_param key request =
+  let look_up_param request key =
     try 
-      Ok (Dream.param request key) 
-    with Failure _ -> Error (`Key_not_found key)
+      Lwt_result.return (Dream.param request key)
+    with Failure _ -> 
+      Lwt_result.fail (`Key_not_found key)
 end
 
 let handle_rounds_list request =
@@ -63,40 +64,36 @@ let handle_round_detail request =
   Helper.view_or_error_to_response =<<
   let ctx = Context.retrieve request in
   let uuid = Dream.param request "uuid" in
-  let*? round = Rounds_queue.find_by_uuid uuid ctx.queue in
-  let name = Helper.look_up_get_opt_param "name" request in
+  let name = Helper.look_up_get_opt_param request "name" in
   let res = Option.bind
-    (Helper.look_up_get_opt_param "res" request) 
+    (Helper.look_up_get_opt_param request "res") 
     Models.Fields.Res.of_string
   in
   let expected_res = Option.bind
-    (Helper.look_up_get_opt_param "expected_res" request)
+    (Helper.look_up_get_opt_param request "expected_res")
     Models.Fields.Res.of_string
   in
   let errcode = Option.bind
-    (Helper.look_up_get_opt_param "errcode" request)
+    (Helper.look_up_get_opt_param request "errcode")
     Models.Fields.Errcode.of_string
   in
   let only_diff = 
-    Helper.look_up_get_opt_param "only_diff" request
+    Helper.look_up_get_opt_param request "only_diff"
     |> Option.is_some
   in
-  let+? pbs = 
-    Round.problems ?name ?res ?expected_res ?errcode ~only_diff round 
-  in
-  Views.render_round_detail request pbs
+  Rounds_queue.find_by_uuid uuid ctx.queue 
+  >>? Round.problems ?name ?res ?expected_res ?errcode ~only_diff
+  >|? Views.render_round_detail request
 
 let handle_problem_trace request = 
   Helper.view_or_error_to_response =<<
   let ctx = Context.retrieve request in
-  let uuid = Dream.param request "uuid" in
-  let name = Dream.param request "problem" 
-    |> Dream.from_base64url |> Option.to_result ~none:(`Key_not_found "problem")
-  in
-  let*? round = Rounds_queue.find_by_uuid uuid ctx.queue 
-  and*? name = Lwt.return name in 
-  let+? pb = Round.problem ~name round in
-  Views.render_problem_trace request pb
+  let*? uuid = Helper.look_up_param request "uuid"
+  and*? name = Helper.look_up_param request "problem" in
+  Rounds_queue.find_by_uuid uuid ctx.queue
+  >>? Round.problem ~name
+  >|? Views.render_problem_trace request
+
 
 let handle_schedule_round request = 
   let ctx = Context.retrieve request in
@@ -137,8 +134,8 @@ let handle_rounds_diff request =
   let*? round2 = Rounds_queue.find_by_uuid uuid2 ctx.queue in
   let*? db_file1 = Round.db_file round1 
   and*? db_file2 = Round.db_file round2 in
-  let+? pb_diffs = Actions.compare db_file1 db_file2 in
-  Views.render_rounds_diff request pb_diffs
+  Actions.compare db_file1 db_file2
+  >|? Views.render_rounds_diff request
 
 (* TODO: Clean up *)
 let handle_round_action_dispatcher request =

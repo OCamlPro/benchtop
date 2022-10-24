@@ -45,24 +45,6 @@ module Fields = struct
       Caqti_type.(custom ~encode ~decode string)
   end
 
-  module Ext = struct
-    type t = Ae | Smt2 | Psmt2
-
-    let t =
-      let encode = function
-        | Ae -> Ok "ae"
-        | Smt2 -> Ok "smt2"
-        | Psmt2 -> Ok "psmt2"
-      in
-      let decode = function
-        | "ae" -> Ok Ae
-        | "smt2" -> Ok Smt2
-        | "psmt2" -> Ok Psmt2
-        | _ -> Error "invalid extension of problem"
-      in
-      Caqti_type.(custom ~encode ~decode string)
-  end
-
   module Errcode = struct
     type t = Success | Failed of int
  

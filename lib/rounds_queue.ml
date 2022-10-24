@@ -13,7 +13,7 @@ let make ~dir =
   |> Lwt_list.map_s (fun db_file -> Round.resurect ~db_file)
   >|= fun lst -> {lst; pos = None}
 
-let rec update {lst; pos} =
+let update {lst; pos} =
   let new_pos = ref pos in
   let lst = List.mapi (fun j round ->
     Lwt.return round >>? fun ({status; _} as round : Round.t) ->

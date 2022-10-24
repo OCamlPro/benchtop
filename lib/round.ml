@@ -64,7 +64,7 @@ end = struct
           Lwt_result.return {inotify; stdout; stderr; handler; db_file}
       | Error rc ->
           Dream.error (fun log -> log "\
-            Cannot found the database@,\
+            Cannot find the database@,\
             Error code: %a@,\
             Standard output: @,\
             %s@,\

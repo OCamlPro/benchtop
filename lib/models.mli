@@ -14,11 +14,6 @@ module Fields : sig
     include Rapper.CUSTOM with type t := t
   end
 
-  module Ext : sig
-    type t = private Ae | Smt2 | Psmt2
-    include Rapper.CUSTOM with type t := t
-  end
-
   module Errcode : sig
     type t = private Success | Failed of int 
 

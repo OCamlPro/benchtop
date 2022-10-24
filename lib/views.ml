@@ -9,7 +9,6 @@ module Helper : sig
   val string_of_float : float -> string
   val string_of_errcode : Models.Fields.Errcode.t -> string
   val string_of_res : Models.Fields.Res.t -> string
-  val string_of_ext : Models.Fields.Ext.t -> string
 
   val color_of_res : Models.Fields.Res.t -> string
 
@@ -25,7 +24,7 @@ end = struct
 
   let format_date (tm : Unix.tm) = 
     Format.sprintf "%02i/%02i/%04i %02i:%02i:%02i"
-      tm.tm_mday tm.tm_mon (tm.tm_year + 1900)
+      tm.tm_mday (tm.tm_mon + 1) (tm.tm_year + 1900)
       tm.tm_hour tm.tm_min tm.tm_sec 
 
   let csrf_tag request =
@@ -44,12 +43,6 @@ end = struct
     | Unknown -> "unknown"
     | Error -> "error"
 
-  let string_of_ext (ext : Models.Fields.Ext.t) =
-    match ext with
-    | Ae -> "ae"
-    | Smt2 -> "smt2"
-    | Psmt2 -> "psmt2"
-
   let string_of_int = Format.sprintf "%i"
   let string_of_float = Format.sprintf "%f"
 
@@ -64,7 +57,7 @@ end = struct
     Format.fprintf fmt "%s: %s" prover.name prover.version
 end 
 
-let navbar ?(collapse_content=[]) content =
+let navbar content =
   [%html "\
     <div class='container-fluid d-wrap flex-row flex-wrap'>\
       <a class='navbar-brand text-primary' href='#'>Benchtop</a>\
@@ -76,22 +69,10 @@ let navbar ?(collapse_content=[]) content =
       </button>\
       <div class='collapse navbar-collapse \
         justify-content-center' id='collapse-content'>\
-        " collapse_content "\
-      </div>\
-      <div class='flex-grow-1 \
-        justify-content-center'>\
         " content "\
       </div>\
-      <nav>
-        <ul class='nav nav-tabs'>
-          <li class='nav-item'>
-            <a class='nav-link active' aria-current='page' href='#'>Benchmark</a>
-          </li>
-          <li class='nav-item'>
-            <a class='nav-link' href='#'>Problems</a>
-          </li>
-        </ul>
-      </nav>
+      <div class='flex-lg-grow-0 flex-grow-1 justify-content-center'>\
+      </div>\ 
     </div>\
   "]
 
@@ -361,9 +342,8 @@ end
 let render_rounds_list request ~is_running rounds =
   let open Rounds_list in
   let rounds_table = table rounds in
-  let navbar = navbar
-    ~collapse_content:[benchpress_form ~is_running request]
-    [action_form request]
+  let navbar = navbar 
+    [benchpress_form ~is_running request; action_form request]
   in
   page_layout ~subtitle:"Rounds" ~hcontent:[navbar] [rounds_table]
   |> Helper.html_to_string
@@ -488,9 +468,7 @@ end
 let render_round_detail request pbs =
   let open Problems_list in 
   let table = table pbs request in
-  let navbar = navbar ~collapse_content:[filter_form request]
-    [action_form request]
-  in
+  let navbar = navbar [filter_form request; action_form request] in
   page_layout ~subtitle:"Round" ~hcontent:[navbar] [table]
   |> Helper.html_to_string
 
@@ -550,7 +528,7 @@ module Problem_diffs_list : sig
   val table : Models.Problem_diff.t list -> Dream.request ->
     [> Html_types.tablex] Tyxml.Html.elt
 end = struct 
-  let row ~number pb_diff request =
+  let row ~number pb_diff _request =
     let open Models.Problem_diff in
     let pb_link = Format.sprintf 
       "/round//problem/%s" (Dream.to_base64url pb_diff.name)
