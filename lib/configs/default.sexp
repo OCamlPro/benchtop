@@ -16,7 +16,3 @@
   (sat "^sat")
   (unsat "Valid|(^unsat)")
   (unknown "(I Don't Know)|(^unsat)"))
-
-; Example:
-; benchpress run -c $HOME/workspace/alt-ergo/non-regression/config.sexp -p alt-ergo $HOME/workspace/alt-ergo/non-regression/invalid $HOME/workspace/alt-ergo/non-regression/valid $HOME/workspace/alt-ergo/non-regression/challenges/valid/
-; stores the resulting db in ~/.local/share/benchpress/

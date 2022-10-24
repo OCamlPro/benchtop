@@ -101,7 +101,9 @@ let handle_schedule_round request =
   let ctx = Context.retrieve request in
   let new_round = Round.make ~cmd:
     ("benchpress", [|"benchpress"; "run"; "-c";
-      "lib/config.sexp"; "-p"; "alt-ergo"; "lib/tests"|]) ~config:"default" in
+      "lib/configs/default.sexp"; "-p"; "alt-ergo"; "lib/tests"|]) 
+      ~config:"default" 
+  in
   ctx.queue <- Rounds_queue.push new_round ctx.queue;
   Dream.form request >>= function
   | `Ok _ -> Dream.redirect request "/"

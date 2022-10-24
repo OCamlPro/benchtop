@@ -1,0 +1,3 @@
+(install
+  (section (site (benchtop configs)))
+  (files default.sexp))

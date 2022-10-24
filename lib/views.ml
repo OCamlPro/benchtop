@@ -304,12 +304,9 @@ end = struct
       [%html "\
         <tr>\
           <th></th>\
-          <td>"  "</td>\
-          <td>"  "</td>\
-          <td class='text-center'>"  "</td>\
-          <td class='text-center'>"  "</td>\
-          <td class='text-center'>"  "</td>\
-          <td class='text-center'>"  "</td>\
+          <td colspan='6'>\
+            <span class='badge bg-danger'>Error</span>\
+          </td>\
         </tr>\
       "]
 

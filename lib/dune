@@ -29,7 +29,3 @@
 (generate_sites_module
   (module location)
   (sites benchtop))
-
-(install
-  (section share)
-  (files config.sexp))
