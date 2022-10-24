@@ -28,15 +28,20 @@ type param = [
   | `Key_not_found of string
 ]
 
+type misc = [
+  | `Cannot_convert_to_base64
+]
+
 type t = [
   | sql
   | process
   | round
   | param
   | form
+  | misc
 ]
 
-let pp : 'a. ([< t] as 'a) Misc.printer =
+let pp : 'a. ([< t] as 'a) Fmt.t =
   fun fmt -> function
     | #Caqti_error.t as err -> Caqti_error.pp fmt err
     | _ -> failwith "not implemented yet"

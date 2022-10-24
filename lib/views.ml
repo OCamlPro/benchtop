@@ -12,7 +12,7 @@ module Helper : sig
 
   val color_of_res : Models.Fields.Res.t -> string
 
-  val pp_prover : Models.Prover.t Misc.printer
+  val pp_prover : Models.Prover.t Fmt.t
   val look_up_param : string -> Dream.request -> string
 end = struct
   let look_up_param param request =

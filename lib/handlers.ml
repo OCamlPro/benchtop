@@ -89,7 +89,10 @@ let handle_problem_trace request =
   Helper.view_or_error_to_response =<<
   let ctx = Context.retrieve request in
   let*? uuid = Helper.look_up_param request "uuid"
-  and*? name = Helper.look_up_param request "problem" in
+  and*? name = 
+    let*? name = Helper.look_up_param request "problem" in
+    Lwt.return @@ Misc.from_base64url name
+  in
   Rounds_queue.find_by_uuid ctx.queue uuid
   >>? Round.problem ~name
   >|? Views.render_problem_trace request
