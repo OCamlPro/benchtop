@@ -117,7 +117,7 @@ let handle_problem_trace request =
   in
   Lwt.bind view Helper.view_or_error_to_response
 
-let pp_bp_config ~binary fmt =
+let pp_bp_config ~binary fmt () =
   let binary_path = Filename.concat Options.binaries_dir binary in
   let name, version =
     let regexp = Str.regexp {|alt-ergo-\([a-zA-Z0-9_\-]+\)|} in
@@ -157,7 +157,8 @@ let generate_bp_config ~binary =
     Filename.open_temp_file "benchpress_" ".sexp" 
   in
   let fmt = Format.formatter_of_out_channel ch in
-  pp_bp_config ~binary fmt;
+  pp_bp_config ~binary fmt ();
+  Dream.debug (fun log -> log "%a" (pp_bp_config ~binary) ());
   close_out ch;
   filename
 
