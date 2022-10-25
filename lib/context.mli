@@ -1,8 +1,9 @@
 type t = {
-  mutable queue: Rounds_queue.t;
+  queue: Rounds_queue.t;
 }
 
-val init : unit -> t
-val retrieve : Dream.request -> t
-val middleware : t -> Dream.middleware
+val init : unit -> unit Lwt.t
+val get : unit -> t
+val set : t -> unit 
+val update : unit -> unit Lwt.t
 

@@ -1,5 +1,6 @@
 type t
 
+val empty: t
 val make : dir:string -> t Lwt.t
 val update : t -> t Lwt.t
 val push : Round.t -> t -> t

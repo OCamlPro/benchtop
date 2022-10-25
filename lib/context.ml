@@ -1,21 +1,21 @@
 open Syntax
 
 type t = {
-  mutable queue: Rounds_queue.t;
+  queue: Rounds_queue.t;
 }
 
-let field = Dream.new_field ()
+let ctx : t ref = ref {queue=Rounds_queue.empty}
 
-let init () = Lwt_main.run (
+let init () = 
   let* queue = Rounds_queue.make ~dir:Options.benchpress_share_dir in
-  Lwt.return {queue})
+  ctx := {queue};
+  Lwt.return ()
 
-let middleware ctx inner_handler request =
-  Dream.set_field request field ctx; 
-  inner_handler request
+let set c = ctx := c
 
-let retrieve request = 
-  match Dream.field request field with
-  | Some ctx -> ctx
-  | None -> failwith "No context found"
+let get () = !ctx
+
+let update () =
+  let+ queue = Rounds_queue.update !ctx.queue in
+  ctx := {queue}
 

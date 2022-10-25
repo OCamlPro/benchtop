@@ -66,9 +66,9 @@ end
 
 let handle_rounds_list request =
   let view = 
-    let ctx = Context.retrieve request in
+    let ctx = Context.get () in
     let+ queue = Rounds_queue.update ctx.queue in
-    ctx.queue <- queue;
+    Context.set {queue};
     let is_running = Rounds_queue.is_running queue in
     let rounds = Rounds_queue.to_list queue in
     let provers = Models.Prover.readdir ~dir:Options.binaries_dir in
@@ -78,7 +78,7 @@ let handle_rounds_list request =
 
 let handle_round_detail request =
   let view = 
-    let ctx = Context.retrieve request in
+    let ctx = Context.get () in
     let name = Helper.look_up_get_opt_param request "name" in
     let res = Option.bind
       (Helper.look_up_get_opt_param request "res") 
@@ -105,7 +105,7 @@ let handle_round_detail request =
 
 let handle_problem_trace request = 
   let view =
-    let ctx = Context.retrieve request in
+    let ctx = Context.get () in
     let*? uuid = Helper.look_up_param request "uuid"
     and*? name = 
       let*? name = Helper.look_up_param request "problem" in
@@ -162,7 +162,7 @@ let generate_bp_config ~binary =
   filename
 
 let handle_schedule_round request = 
-  let ctx = Context.retrieve request in
+  let ctx = Context.get () in
   (Helper.look_up_post_param request "prover" 
   >|? fun prover ->
   let config_path = generate_bp_config ~binary:prover in
@@ -177,7 +177,7 @@ let handle_schedule_round request =
     ; "lib/tests"|]) 
     ~config:"default" 
   in
-  Ok (ctx.queue <- Rounds_queue.push new_round ctx.queue))
+  Ok ({queue=Rounds_queue.push new_round ctx.queue} |> Context.set))
   >>= Helper.redirect_or_error_response request ~path:"/"
 
 let handle_stop_round request =
@@ -201,7 +201,7 @@ module Actions = struct
 end
 
 let handle_rounds_diff request = 
-  let ctx = Context.retrieve request in
+  let ctx = Context.get () in
   let get_db_file uuid =
     Helper.look_up_param request uuid
     >>? Rounds_queue.find_by_uuid ctx.queue

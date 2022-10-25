@@ -24,17 +24,20 @@ let header_logger inner_handler request =
   in
   inner_handler request
 
-let start_server log_level interface port = 
+let rec update_context () =
+  let* _ = Lwt_unix.sleep 1. in
+  let* _ = Context.update () in
+  update_context ()
+
+let server log_level interface port = 
   let log_level = Option.value log_level ~default:`Info in
   let interface = Option.value interface ~default:"localhost" in
   let port = Option.value port ~default:8080 in
-  let ctx = Context.init () in
   Dream.initialize_log ~level:log_level ();
-  Dream.run ~interface ~port 
+  Dream.serve ~interface ~port 
   @@ Dream.logger
   @@ Dream.memory_sessions
   @@ header_logger
-  @@ Context.middleware ctx
   @@ Dream.router [
       Dream.get "/css/**" @@ Dream.static (List.hd Location.Sites.css)
     ; Dream.get "/" @@ Handlers.handle_rounds_list
@@ -53,6 +56,12 @@ let start_server log_level interface port =
         Dream.get ":uuid" @@ Handlers.handle_problems_list
     ]
   ]
+
+let main log_level interface port =
+  Lwt_main.run (
+    let* _ = Context.init () in
+    Lwt.async (update_context);
+    server log_level interface port)
 
 module Cmd = struct
   open Cmdliner
@@ -87,7 +96,7 @@ module Cmd = struct
       ; `S Manpage.s_bugs; `P "Bug reports to <pierre.villemot@ocamlpro.com>"
     ] in
     let info = Cmd.info "benchtop" ~version:"dev" ~doc ~man in
-    Cmd.v info Term.(const start_server $ log_level $ interface $ port)
+    Cmd.v info Term.(const main $ log_level $ interface $ port)
 
   let main () = exit (Cmd.eval cmd)
 end

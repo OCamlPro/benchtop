@@ -7,6 +7,8 @@ type t = {
 
 let to_list {lst; _} = lst
 
+let empty = {lst = []; pos = None}
+
 let make ~dir =
   let ext_filter = fun str -> String.equal str ".sqlite" in
   File.readdir ~ext_filter dir
