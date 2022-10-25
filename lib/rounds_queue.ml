@@ -11,6 +11,16 @@ let make ~dir =
   let ext_filter = fun str -> String.equal str ".sqlite" in
   File.readdir ~ext_filter dir
   |> Lwt_list.map_s (fun db_file -> Round.resurect ~db_file)
+  >>= fun rounds -> Lwt.return (List.sort 
+  (fun round1 round2 -> 
+    let open Round in
+    match (round1, round2) with
+    | Ok {date=date1; _}, Ok {date=date2; _} ->
+        let date1 = Unix.mktime date1 |> fst in
+        let date2 = Unix.mktime date2 |> fst in
+        Int.of_float (date2 -. date1)
+    | _ -> assert false
+  ) rounds)
   >|= fun lst -> {lst; pos = None}
 
 let rec update {lst; pos} =
