@@ -119,6 +119,16 @@ let handle_problem_trace request =
 
 let pp_bp_config ~binary fmt =
   let binary_path = Filename.concat Options.binaries_dir binary in
+  let name, version =
+    let regexp = Str.regexp {|alt-ergo-\([a-zA-Z0-9_\-]+\)|} in
+    let version = 
+      if Str.string_match regexp binary 0 then
+        Str.matched_group 1 binary
+      else
+        ""
+    in
+    ("alt-ergo", version)
+  in
   Format.fprintf fmt "\
   @[<v 1>(prover@ \
     @[<v 1>(name ae-read-status)@ \
@@ -131,17 +141,20 @@ let pp_bp_config ~binary fmt =
       @[<v 1>(pattern \".*.ae|.*.smt2\")@ \
         @[<v 1>(expect (run ae-read-status)))@]@]@]@]@\n\
   @[<v 1>(prover@ \
-    @[<v 1>(name alt-ergo)@ \
-      @[<v 1>(cmd \"%s $file\")@ \
-        @[<v 1>(sat \"^sat\")@ \
-          @[<v 1>(unsat \"Valid|(^unsat)\")@ \
-            @[<v 1>(unknown \"(I Don't Know)|(^unsat)\"))@]@]@]@]@]@]@\n"
+    @[<v 1>(name %s)@ \
+      @[<v 1>(version %s)@ \
+        @[<v 1>(cmd \"%s $file\")@ \
+          @[<v 1>(sat \"^sat\")@ \
+            @[<v 1>(unsat \"Valid|(^unsat)\")@ \
+              @[<v 1>(unknown \"(I Don't Know)|(^unsat)\"))@]@]@]@]@]@]@]@\n"
   Options.tests_dir
+  name
+  version
   binary_path
 
 let generate_bp_config ~binary =
   let filename, ch = 
-    Filename.open_temp_file "benchtop_" "_config" 
+    Filename.open_temp_file "benchpress_" ".sexp" 
   in
   let fmt = Format.formatter_of_out_channel ch in
   pp_bp_config ~binary fmt;

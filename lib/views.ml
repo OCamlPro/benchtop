@@ -224,7 +224,7 @@ let checkbox ?(checked=false) ?(cla=[]) id =
 let benchpress_form request ~is_running provers =
   let provers = List.map (fun prover ->
     let key = Format.asprintf "%a" Helper.pp_prover prover in
-    let value = "prover" in
+    let value = key in
     (key, value)
   ) provers in
   [%html "\
