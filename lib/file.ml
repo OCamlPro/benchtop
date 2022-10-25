@@ -26,3 +26,11 @@ let read_all ch =
     assert false
   with End_of_file ->
     Buffer.contents buf
+
+let to_temp_file prefix suffix =
+  let (prefix, suffix) = 
+    Format.(sprintf "%s_" prefix, sprintf "_%s" suffix) 
+  in
+  let filename = Filename.temp_file prefix suffix in
+  let ch = open_in filename in
+  (filename, ch)

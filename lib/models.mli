@@ -42,6 +42,10 @@ module Prover : sig
     name: string ->
     version: string option ->
     (t, [> Error.sql]) request
+
+  val readdir :
+    dir: string ->
+    t list
 end
 
 module Problem : sig

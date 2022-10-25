@@ -2,7 +2,8 @@ val render_error : msg:string -> string
 val render_rounds_list : 
   Dream.request -> 
   is_running:bool -> 
-  (Round.t, Error.t) result list -> 
+  (Round.t, Error.t) result list ->
+  Models.Prover.t list ->
   string
 
 val render_round_detail : 

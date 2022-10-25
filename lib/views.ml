@@ -217,7 +217,12 @@ let checkbox ?(checked=false) ?(cla=[]) id =
   input ~a:(checked_attribut @
     [a_input_type `Checkbox; a_id id; a_name id; a_class cla]) ()
 
-let benchpress_form request ~is_running =
+let benchpress_form request ~is_running provers =
+  let provers = List.map (fun prover ->
+    let key = Format.asprintf "%a" Helper.pp_prover prover in
+    let value = "prover" in
+    (key, value)
+  ) provers in
   [%html "\
   <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
     method='post' name='benchpress-controller' action='/benchpress/schedule'>\
@@ -225,7 +230,7 @@ let benchpress_form request ~is_running =
     <div class='p-2'>\
       " [Selector.make ~id:"prover" ~label:"Prover"
           ~default_option:(Default_value {key="default"; value="default"})
-          [] request] "\
+          provers request] "\
     </div>\
     <div class='p-2'>\
       " [Selector.make ~id:"config" ~label:"Config"
@@ -336,11 +341,11 @@ end = struct
     action_form request ~actions:[("compare", "compare")]
 end
  
-let render_rounds_list request ~is_running rounds =
+let render_rounds_list request ~is_running rounds provers =
   let open Rounds_list in
   let rounds_table = table rounds in
   let navbar = navbar 
-    [benchpress_form ~is_running request; action_form request]
+    [benchpress_form request ~is_running provers; action_form request]
   in
   page_layout ~subtitle:"Rounds" ~hcontent:[navbar] [rounds_table]
   |> Helper.html_to_string

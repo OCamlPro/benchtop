@@ -39,11 +39,6 @@ end = struct
   let wait_terminate handler = 
     handler#status >|= fun rc -> Error rc
 
-  let create_temp_file suffix =
-    let file = Filename.temp_file "benchpress" suffix in
-    let fd = Unix.openfile file [O_RDWR] 0o640 in
-    (fd, Unix.in_channel_of_descr fd)
-
   let run ~cmd ~config =
     ignore config;
     let* inotify = Lwt_inotify.create () in
@@ -51,8 +46,10 @@ end = struct
       Lwt_inotify.add_watch inotify Options.benchpress_share_dir
         [Inotify.S_Create]
     in
-    let stdout_fd, stdout = create_temp_file "stdout" in
-    let stderr_fd, stderr = create_temp_file "stderr" in
+    let (_, stdout) = File.to_temp_file "benchpress" "stdout" in
+    let stdout_fd = Unix.descr_of_in_channel stdout in
+    let (_, stderr) = File.to_temp_file "benchpress" "stderr" in
+    let stderr_fd = Unix.descr_of_in_channel stderr in
     Dream.info (fun log -> log "Ready to run benchpress");
     let handler = Lwt_process.open_process_none ~stdout:(`FD_copy stdout_fd)
       ~stderr:(`FD_copy stderr_fd) cmd in

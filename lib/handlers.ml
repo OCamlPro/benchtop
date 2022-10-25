@@ -9,10 +9,10 @@ module Helper : sig
     string -> 
     string option 
 
-  (*val look_up_post_param : 
+  val look_up_post_param : 
     Dream.request -> 
     string -> 
-    (string, [> Error.param]) Lwt_result.t*)
+    (string, [> Error.param]) Lwt_result.t
 
   val look_up_param :
     Dream.request ->
@@ -32,7 +32,7 @@ end = struct
     | Some value when value <> String.empty -> Some value
     | _ -> None 
 
-  (*let look_up_post_param request key =
+  let look_up_post_param request key =
     Dream.form request >|= function
     | `Ok params -> 
         List.assoc_opt key params 
@@ -42,7 +42,7 @@ end = struct
     | `Invalid_token x -> Error (`Invalid_token x)
     | `Missing_token x -> Error (`Missing_token x)
     | `Many_tokens x -> Error (`Many_tokens x)
-    | `Wrong_content_type -> Error (`Wrong_content_type)*)
+    | `Wrong_content_type -> Error (`Wrong_content_type)
 
   let look_up_param request key =
     try 
@@ -56,9 +56,10 @@ let handle_rounds_list request =
   let ctx = Context.retrieve request in
   let+ queue = Rounds_queue.update ctx.queue in
   ctx.queue <- queue;
-  let is_running = Rounds_queue.is_running queue
-  and queue = Rounds_queue.to_list queue in
-  Ok (Views.render_rounds_list request ~is_running queue) 
+  let is_running = Rounds_queue.is_running queue in
+  let rounds = Rounds_queue.to_list queue in
+  let provers = Models.Prover.readdir ~dir:Options.binaries_dir in
+  Ok (Views.render_rounds_list request ~is_running rounds provers) 
 
 let handle_round_detail request =
   Helper.view_or_error_to_response =<<
@@ -97,17 +98,56 @@ let handle_problem_trace request =
   >>? Round.problem ~name
   >|? Views.render_problem_trace request
 
+let pp_bp_config ~binary fmt =
+  let binary_path = Filename.concat Options.binaries_dir binary in
+  Format.fprintf fmt "\
+  @[<v 1>(prover@ \
+    @[<v 1>](name ae-read-status)@ \
+      @[<v 1>](cmd 'grep :status $file')@ \
+        @[<v 1>](unknown ':status unknown')@ \
+          @[<v 1>](sat ':status sat')@ \
+            @[<v 1>](unsat ':status valid'))@]@]@]@]@]@]@\n\
+  @[<v 1>](dir@ \
+    @[<v 1>](path '%s')@ \
+      @[<v 1>](pattern '.*.ae|.*.smt2')@ \
+        @[<v 1>](expect (run ae-read-status)))@]@]@]@]@\n\
+  @[<v 1>](prover@ \
+    @[<v 1>](name alt-ergo)@ \
+      @[<v 1>](cmd '%s $file')@ \
+        @[<v 1>](sat '^sat')@ \
+          @[<v 1>](unsat 'Valid|(^unsat)')@ \
+            @[<v 1>](unknown '(I Don't Know)|(^unsat)'))@]@]@]@]@]@]@\n"
+  Options.tests_dir
+  binary_path
+
+let generate_bp_config ~binary =
+  let filename, ch = 
+    Filename.open_temp_file "benchtop_" "_config" 
+  in
+  let fmt = Format.formatter_of_out_channel ch in
+  pp_bp_config ~binary fmt;
+  close_out ch;
+  filename
+
 let handle_schedule_round request = 
   let ctx = Context.retrieve request in
-  let new_round = Round.make ~cmd:
-    ("benchpress", [|"benchpress"; "run"; "-c";
-      "lib/configs/default.sexp"; "-p"; "alt-ergo"; "lib/tests"|]) 
-      ~config:"default" 
-  in
-  ctx.queue <- Rounds_queue.push new_round ctx.queue;
-  Dream.form request >>= function
-  | `Ok _ -> Dream.redirect request "/"
-  | _ -> Dream.empty `Bad_Request
+  Helper.look_up_post_param request "prover" >>= function
+    | Ok prover ->
+        let config_path = generate_bp_config ~binary:prover in
+        let new_round = Round.make ~cmd:
+          ("benchpress", [|
+              "benchpress"
+            ; "run"
+            ; "-c"
+            ; config_path
+            ; "-p" 
+            ; "alt-ergo" 
+            ; "lib/tests"|]) 
+              ~config:"default" 
+        in
+        ctx.queue <- Rounds_queue.push new_round ctx.queue;
+        Dream.redirect request "/"
+    | _ -> Dream.empty `Bad_Request
 
 let handle_stop_round request =
   Dream.form request >>= function

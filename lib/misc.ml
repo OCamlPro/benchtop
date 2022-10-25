@@ -22,4 +22,4 @@ let sprintf_list pp lst =
 
 let from_base64url str =
   Dream.from_base64url str
-  |> Option.to_result ~none:`Cannot_convert_to_base64 
+  |> Option.to_result ~none:`Cannot_convert_to_base64

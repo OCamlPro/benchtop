@@ -108,6 +108,10 @@ module Prover = struct
           name = %string{name} AND \
           (version = %string?{version} OR %string?{version} IS NULL)\
       " record_out]
+
+  let readdir ~dir = 
+    File.readdir dir 
+    |> List.map (fun filename -> {name=filename; version=""})
 end
 
 module Problem = struct
