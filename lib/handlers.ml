@@ -175,7 +175,7 @@ let handle_schedule_round request =
     ; config_path
     ; "-p" 
     ; "alt-ergo" 
-    ; "lib/tests"|]) 
+    ; Options.tests_dir|]) 
     ~config:"default" 
   in
   Ok ({queue=Rounds_queue.push new_round ctx.queue} |> Context.set))
