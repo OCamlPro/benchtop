@@ -121,21 +121,21 @@ let pp_bp_config ~binary fmt =
   let binary_path = Filename.concat Options.binaries_dir binary in
   Format.fprintf fmt "\
   @[<v 1>(prover@ \
-    @[<v 1>](name ae-read-status)@ \
-      @[<v 1>](cmd 'grep :status $file')@ \
-        @[<v 1>](unknown ':status unknown')@ \
-          @[<v 1>](sat ':status sat')@ \
-            @[<v 1>](unsat ':status valid'))@]@]@]@]@]@]@\n\
-  @[<v 1>](dir@ \
-    @[<v 1>](path '%s')@ \
-      @[<v 1>](pattern '.*.ae|.*.smt2')@ \
-        @[<v 1>](expect (run ae-read-status)))@]@]@]@]@\n\
-  @[<v 1>](prover@ \
-    @[<v 1>](name alt-ergo)@ \
-      @[<v 1>](cmd '%s $file')@ \
-        @[<v 1>](sat '^sat')@ \
-          @[<v 1>](unsat 'Valid|(^unsat)')@ \
-            @[<v 1>](unknown '(I Don't Know)|(^unsat)'))@]@]@]@]@]@]@\n"
+    @[<v 1>(name ae-read-status)@ \
+      @[<v 1>(cmd \"grep :status $file\")@ \
+        @[<v 1>(unknown \":status unknown\")@ \
+          @[<v 1>(sat \":status sat\")@ \
+            @[<v 1>(unsat \":status valid\"))@]@]@]@]@]@]@\n\
+  @[<v 1>(dir@ \
+    @[<v 1>(path \"%s\")@ \
+      @[<v 1>(pattern \".*.ae|.*.smt2\")@ \
+        @[<v 1>(expect (run ae-read-status)))@]@]@]@]@\n\
+  @[<v 1>(prover@ \
+    @[<v 1>(name alt-ergo)@ \
+      @[<v 1>(cmd \"%s $file\")@ \
+        @[<v 1>(sat \"^sat\")@ \
+          @[<v 1>(unsat \"Valid|(^unsat)\")@ \
+            @[<v 1>(unknown \"(I Don't Know)|(^unsat)\"))@]@]@]@]@]@]@\n"
   Options.tests_dir
   binary_path
 
