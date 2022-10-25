@@ -2,8 +2,8 @@ module Process : sig
   type t = private {
     inotify: Lwt_inotify.t;
     handler: Lwt_process.process_none;
-    stdout: in_channel;
-    stderr: in_channel;
+    stdout: out_channel;
+    stderr: out_channel;
     db_file: string;
   }
 
@@ -43,7 +43,7 @@ val is_done : t -> bool
 val problem:
   name:string ->
   t ->
-    (Models.Problem.t, [> Error.round]) Lwt_result.t
+  (Models.Problem.t, [> Error.round]) Lwt_result.t
 
 val problems :
   ?only_diff: bool ->

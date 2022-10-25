@@ -4,8 +4,8 @@ module Process : sig
   type t = private {
     inotify: Lwt_inotify.t;
     handler: Lwt_process.process_none;
-    stdout: in_channel;
-    stderr: in_channel;
+    stdout: out_channel;
+    stderr: out_channel;
     db_file: string;
   }
 
@@ -20,8 +20,8 @@ end = struct
   type t = {
     inotify: Lwt_inotify.t;
     handler: Lwt_process.process_none;
-    stdout: in_channel;
-    stderr: in_channel;
+    stdout: out_channel;
+    stderr: out_channel;
     db_file: string;
   }
 
@@ -41,25 +41,28 @@ end = struct
 
   let run ~cmd ~config =
     ignore config;
+    let name = fst cmd in
     let* inotify = Lwt_inotify.create () in
     let* _ =
       Lwt_inotify.add_watch inotify Options.benchpress_share_dir
         [Inotify.S_Create]
     in
-    let (_, stdout) = File.to_temp_file "benchpress" "stdout" in
-    let stdout_fd = Unix.descr_of_in_channel stdout in
-    let (_, stderr) = File.to_temp_file "benchpress" "stderr" in
-    let stderr_fd = Unix.descr_of_in_channel stderr in
-    Dream.info (fun log -> log "Ready to run benchpress");
-    let handler = Lwt_process.open_process_none ~stdout:(`FD_copy stdout_fd)
-      ~stderr:(`FD_copy stderr_fd) cmd in
-    Dream.info (fun log -> log "Running benchpress");
+    let (stdout_file, stdout) = Filename.open_temp_file name "stdout" in
+    let stdout_fd = Unix.descr_of_out_channel stdout in
+    let (stderr_file, stderr) = Filename.open_temp_file name "stderr" in
+    let stderr_fd = Unix.descr_of_out_channel stderr in
+    Dream.info (fun log -> log "Ready to run %s" name);
+    let handler = Lwt_process.open_process_none ~stdout:(`FD_move stdout_fd)
+      ~stderr:(`FD_move stderr_fd) cmd in
+    Dream.info (fun log -> log "Running %s" name);
     Lwt.choose [wait_db_file inotify; wait_terminate handler]
     >>= function
       | Ok db_file ->
           Dream.info (fun log -> log "Found the database %s" db_file);
           Lwt_result.return {inotify; stdout; stderr; handler; db_file}
       | Error rc ->
+          let stdout = open_in stdout_file in 
+          let stderr = open_in stderr_file in 
           Dream.error (fun log -> log "\
             Cannot find the database@,\
             Error code: %a@,\
@@ -75,8 +78,8 @@ end = struct
 
   let stop {handler; stdout; stderr; db_file; _} =
     handler#terminate;
-    In_channel.close stdout;
-    In_channel.close stderr;
+    Out_channel.close stdout;
+    Out_channel.close stderr;
     Unix.unlink db_file;
     handler#status
  

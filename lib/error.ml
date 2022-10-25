@@ -34,14 +34,49 @@ type misc = [
 
 type t = [
   | sql
-  | process
   | round
   | param
-  | form
   | misc
 ]
+
+let pp_process fmt = function
+  | `Is_running -> Format.fprintf fmt "The processus is still running"
+  | `Stopped rc -> 
+      Format.fprintf fmt 
+      "The processus has been stopped with the error code %a" 
+      Misc.pp_error_code
+      rc
+  | `Db_not_found -> Format.fprintf fmt "The database has not been found"
+
+let pp_round fmt = function
+  | #Caqti_error.t as err -> Caqti_error.pp fmt err
+  | #process as err -> pp_process fmt err
+  | `Round_not_found -> 
+      Format.fprintf fmt
+      "Cannot find the round of uuid ?"
+  | `Cannot_retrieve_info db_file ->
+      Format.fprintf fmt
+      "Cannot retrieve data from the database %s" db_file
+  | `Not_done ->
+      Format.fprintf fmt
+      "The round is still running"
+
+let pp_form _fmt = function
+  | _ -> failwith "not implemented yet"
+
+let pp_param : 'a. ([< param] as 'a) Fmt.t =
+  fun fmt -> function
+    | #form as err -> pp_form fmt err
+    | `Key_not_found str -> 
+        Format.fprintf fmt "Cannot found the key %s" str
+
+let pp_misc fmt = function
+  | `Cannot_convert_to_base64 -> 
+      Format.fprintf fmt "Cannot convert the string to base64"
 
 let pp : 'a. ([< t] as 'a) Fmt.t =
   fun fmt -> function
     | #Caqti_error.t as err -> Caqti_error.pp fmt err
-    | _ -> failwith "not implemented yet"
+    | #round as err -> pp_round fmt err
+    | #param as err -> pp_param fmt err
+    | #misc as err -> pp_misc fmt err

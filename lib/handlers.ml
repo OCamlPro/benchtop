@@ -1,6 +1,12 @@
 open Syntax
 
 module Helper : sig
+  val redirect_or_error_response : 
+    Dream.request ->
+    path:string ->
+    (_, [< Error.t]) result ->
+    Dream.response Lwt.t
+  
   val view_or_error_to_response : 
     (string, [< Error.t]) result -> Dream.response Lwt.t
 
@@ -19,6 +25,13 @@ module Helper : sig
     string ->
     (string, [> Error.param]) Lwt_result.t
 end = struct
+  let redirect_or_error_response request ~path = function
+    | Ok _ -> Dream.redirect request path
+    | Error err -> 
+        Dream.error (fun log -> log "%a" Error.pp err);
+        Dream.html @@ Views.render_error 
+          ~msg:(Format.asprintf "%a" Error.pp err)
+
   let view_or_error_to_response = function
     | Ok view -> Dream.html view
     | Error err -> 
@@ -52,51 +65,57 @@ end = struct
 end
 
 let handle_rounds_list request =
-  Helper.view_or_error_to_response =<<
-  let ctx = Context.retrieve request in
-  let+ queue = Rounds_queue.update ctx.queue in
-  ctx.queue <- queue;
-  let is_running = Rounds_queue.is_running queue in
-  let rounds = Rounds_queue.to_list queue in
-  let provers = Models.Prover.readdir ~dir:Options.binaries_dir in
-  Ok (Views.render_rounds_list request ~is_running rounds provers) 
+  let view = 
+    let ctx = Context.retrieve request in
+    let+ queue = Rounds_queue.update ctx.queue in
+    ctx.queue <- queue;
+    let is_running = Rounds_queue.is_running queue in
+    let rounds = Rounds_queue.to_list queue in
+    let provers = Models.Prover.readdir ~dir:Options.binaries_dir in
+    Ok (Views.render_rounds_list request ~is_running rounds provers) 
+  in
+  Lwt.bind view Helper.view_or_error_to_response
 
 let handle_round_detail request =
-  Helper.view_or_error_to_response =<<
-  let ctx = Context.retrieve request in
-  let name = Helper.look_up_get_opt_param request "name" in
-  let res = Option.bind
-    (Helper.look_up_get_opt_param request "res") 
-    Models.Fields.Res.of_string
+  let view = 
+    let ctx = Context.retrieve request in
+    let name = Helper.look_up_get_opt_param request "name" in
+    let res = Option.bind
+      (Helper.look_up_get_opt_param request "res") 
+      Models.Fields.Res.of_string
+    in
+    let expected_res = Option.bind
+      (Helper.look_up_get_opt_param request "expected_res")
+      Models.Fields.Res.of_string
+    in
+    let errcode = Option.bind
+      (Helper.look_up_get_opt_param request "errcode")
+      Models.Fields.Errcode.of_string
+    in
+    let only_diff = 
+      Helper.look_up_get_opt_param request "only_diff"
+      |> Option.is_some
+    in
+    Helper.look_up_param request "uuid"
+    >>? Rounds_queue.find_by_uuid ctx.queue
+    >>? Round.problems ?name ?res ?expected_res ?errcode ~only_diff
+    >|? Views.render_round_detail request
   in
-  let expected_res = Option.bind
-    (Helper.look_up_get_opt_param request "expected_res")
-    Models.Fields.Res.of_string
-  in
-  let errcode = Option.bind
-    (Helper.look_up_get_opt_param request "errcode")
-    Models.Fields.Errcode.of_string
-  in
-  let only_diff = 
-    Helper.look_up_get_opt_param request "only_diff"
-    |> Option.is_some
-  in
-  Helper.look_up_param request "uuid"
-  >>? Rounds_queue.find_by_uuid ctx.queue
-  >>? Round.problems ?name ?res ?expected_res ?errcode ~only_diff
-  >|? Views.render_round_detail request
+  Lwt.bind view Helper.view_or_error_to_response
 
 let handle_problem_trace request = 
-  Helper.view_or_error_to_response =<<
-  let ctx = Context.retrieve request in
-  let*? uuid = Helper.look_up_param request "uuid"
-  and*? name = 
-    let*? name = Helper.look_up_param request "problem" in
-    Lwt.return @@ Misc.from_base64url name
+  let view =
+    let ctx = Context.retrieve request in
+    let*? uuid = Helper.look_up_param request "uuid"
+    and*? name = 
+      let*? name = Helper.look_up_param request "problem" in
+      Lwt.return @@ Misc.from_base64url name
+    in
+    Rounds_queue.find_by_uuid ctx.queue uuid
+    >>? Round.problem ~name
+    >|? Views.render_problem_trace request
   in
-  Rounds_queue.find_by_uuid ctx.queue uuid
-  >>? Round.problem ~name
-  >|? Views.render_problem_trace request
+  Lwt.bind view Helper.view_or_error_to_response
 
 let pp_bp_config ~binary fmt =
   let binary_path = Filename.concat Options.binaries_dir binary in
@@ -131,23 +150,22 @@ let generate_bp_config ~binary =
 
 let handle_schedule_round request = 
   let ctx = Context.retrieve request in
-  Helper.look_up_post_param request "prover" >>= function
-    | Ok prover ->
-        let config_path = generate_bp_config ~binary:prover in
-        let new_round = Round.make ~cmd:
-          ("benchpress", [|
-              "benchpress"
-            ; "run"
-            ; "-c"
-            ; config_path
-            ; "-p" 
-            ; "alt-ergo" 
-            ; "lib/tests"|]) 
-              ~config:"default" 
-        in
-        ctx.queue <- Rounds_queue.push new_round ctx.queue;
-        Dream.redirect request "/"
-    | _ -> Dream.empty `Bad_Request
+  (Helper.look_up_post_param request "prover" 
+  >|? fun prover ->
+  let config_path = generate_bp_config ~binary:prover in
+  let new_round = Round.make ~cmd:
+    ("benchpress", [|
+      "benchpress"
+    ; "run"
+    ; "-c"
+    ; config_path
+    ; "-p" 
+    ; "alt-ergo" 
+    ; "lib/tests"|]) 
+    ~config:"default" 
+  in
+  Ok (ctx.queue <- Rounds_queue.push new_round ctx.queue))
+  >>= Helper.redirect_or_error_response request ~path:"/"
 
 let handle_stop_round request =
   Dream.form request >>= function

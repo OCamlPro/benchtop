@@ -54,7 +54,10 @@ end = struct
     | Error -> "text-danger"
 
   let pp_prover fmt (prover : Models.Prover.t) =
-    Format.fprintf fmt "%s: %s" prover.name prover.version
+    if String.length prover.version > 0 then
+      Format.fprintf fmt "%s: %s" prover.name prover.version
+    else
+      Format.fprintf fmt "%s" prover.name
 end 
 
 let navbar content =
@@ -136,6 +139,7 @@ let check_selector ~number value =
       id='"id"' name='"id"' value='"value"'/>\
   "]
 
+(* BUG: placeholder option does not work properly. *)
 module Selector = struct
   type default_option =
     | Default_value of {key: string; value: string}
@@ -229,10 +233,10 @@ let benchpress_form request ~is_running provers =
     " [Helper.csrf_tag request] "\
     <div class='p-2'>\
       " [Selector.make ~id:"prover" ~label:"Prover"
-          ~default_option:(Default_value {key="default"; value="default"})
+          ~default_option:(Placeholder "...")
           provers request] "\
     </div>\
-    <div class='p-2'>\
+    <div class='p-2' hidden>\
       " [Selector.make ~id:"config" ~label:"Config"
           ~default_option:(Default_value {key="default"; value="default"})
           [] request] "\
