@@ -1,8 +1,0 @@
-(*(set-info :status valid)*)
-logic p1, p2 , q, r, s : prop
-
-(* valid ? *)
-
-goal g:
-((if p1 or p2 then q else r) and s) <->
-(if p1 or p2 then (q and s) else (r and s))

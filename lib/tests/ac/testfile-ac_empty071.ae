@@ -1,9 +1,0 @@
-(*(set-info :status valid)*)
-
-
-logic a,b,aa,x : int
-logic ac f : int,int -> int
-
-goal g71:
-  f(a,b) = x -> a = aa -> f(a,b) = f(aa,b) = x
-

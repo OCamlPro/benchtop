@@ -1,3 +1,0 @@
-(*(set-info :status valid)*)
-
-goal mult_po_6: forall a:int. a > 0 -> a % 2 = 1 -> a / 2 < a

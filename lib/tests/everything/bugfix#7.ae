@@ -1,6 +1,0 @@
-(*(set-info :status valid)*)
-axiom a:
-      exists x : int. x = 1 and -x = 0
-
-
-goal g: false

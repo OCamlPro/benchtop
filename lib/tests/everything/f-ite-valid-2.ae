@@ -1,6 +1,0 @@
-(*(set-info :status valid)*)
-logic b : bool
-logic p : prop
-goal g:
-b ->
-if not b then 1 <= 0 else 1 <= 1

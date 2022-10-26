@@ -1,3 +1,0 @@
-(*(set-info :status valid)*)
-
-goal g13: forall a,b:int. a % 2 = (a + 2*b) % 2

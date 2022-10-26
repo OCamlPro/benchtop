@@ -1,3 +1,0 @@
-(*(set-info :status valid)*)
-
-goal g2: forall a:int. a % 2 = 1 -> (a + 1) % 2 = 0

@@ -1,7 +1,0 @@
-(*(set-info :status valid)*)
-
-
-logic x,y : int
-
-goal g9 : x<>0 -> x = y -> y/y = 1
-

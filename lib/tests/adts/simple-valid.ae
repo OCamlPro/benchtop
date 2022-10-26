@@ -1,6 +1,0 @@
-(*(set-info :status valid)*)
-type t = A of { a : int } | B of { b : int }
-
-
-goal valid_simple:
-(A(1))#a = 1

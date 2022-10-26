@@ -1,3 +1,0 @@
-(install
-  (section (site (benchtop tests)))
-  (files example.ae))

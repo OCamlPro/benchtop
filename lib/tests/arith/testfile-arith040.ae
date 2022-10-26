@@ -1,6 +1,0 @@
-(*(set-info :status valid)*)
-
-logic x : int
-
-goal g34 : x<>0 -> x/x = 1
-

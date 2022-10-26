@@ -1,4 +1,0 @@
-(*(set-info :status valid)*)
-
-goal g23: forall x:int. x*x>=0 -> 1=1
-

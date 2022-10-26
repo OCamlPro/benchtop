@@ -1,3 +1,0 @@
-(*(set-info :status valid)*)
-
-goal g10: forall a:int. a % 4 = 1 -> a % 4 <> 0 and a % 4 <> 2 and a % 4 <> 3
