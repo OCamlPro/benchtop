@@ -456,7 +456,7 @@ end = struct
           ("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
           ("error", "error")
           ] request] "\
-     </div>\ 
+     </div>\
      <div class='p-2'>\
       " [Selector.make ~id:"expected_res" ~label:"Expected"
           ~default_option:(Default_value {key="any"; value=""}) [

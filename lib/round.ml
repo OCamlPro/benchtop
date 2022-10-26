@@ -113,9 +113,9 @@ let find_db_file =
     String.equal (Filename.extension file) ".sqlite"
   in
   fun inotify ->
-    Lwt_inotify.read inotify 
+    Lwt_inotify.try_read inotify 
     >>= function
-      | (_, [Inotify.Create], _, Some file) when is_db file -> 
+      | Some (_, [Inotify.Create], _, Some file) when is_db file -> 
           Lwt_result.return file
       | _ -> Lwt_result.fail `Db_not_found 
 
