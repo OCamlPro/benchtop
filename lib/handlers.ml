@@ -130,12 +130,14 @@ let pp_bp_config ~binary fmt () =
     ("alt-ergo", version)
   in
   Format.fprintf fmt "\
+  (j 60)@\n\
   @[<v 1>(prover@ \
     @[<v 1>(name ae-read-status)@ \
       @[<v 1>(cmd \"grep :status $file\")@ \
         @[<v 1>(unknown \":status unknown\")@ \
-          @[<v 1>(sat \":status sat\")@ \
-            @[<v 1>(unsat \":status unsat\"))@]@]@]@]@]@]@\n\
+          @[<v 1>(unknown \"\")@ \
+            @[<v 1>(sat \":status sat\")@ \
+              @[<v 1>(unsat \":status unsat\"))@]@]@]@]@]@]@]@]\n\
   @[<v 1>(dir@ \
     @[<v 1>(path \"%s\")@ \
       @[<v 1>(pattern \".*.ae|.*.smt2\")@ \
