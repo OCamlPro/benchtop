@@ -1,38 +1,30 @@
 module Process : sig
-  type t = private {
-    inotify: Lwt_inotify.t;
-    handler: Lwt_process.process_none;
-    stdout: out_channel;
-    stderr: out_channel;
-    db_file: string;
-  }
+  type t
 
-  val run :
-    cmd:Lwt_process.command ->
-    config:string ->
-     (t, [> Error.process]) Lwt_result.t
-
+  val run : cmd:Lwt_process.command -> t
   val stop : t -> Unix.process_status Lwt.t
   val is_done : t -> bool
+  val pp_output : t Fmt.t
 end
 
-type status = private
-  | Pending
-  | Running of Process.t
+type t = private
+  | Pending of {
+    pending_since: Unix.tm;
+    cmd: Lwt_process.command
+  }
+  | Running of {
+    running_since: Unix.tm;
+    watcher: Lwt_inotify.t;
+    proc: Process.t;
+  }
   | Done of {
+    done_since: Unix.tm;
     db_file: string;
     summary: Models.Round_summary.t;
     provers: Models.Prover.t list
   }
 
-type t = private {
-  cmd: Lwt_process.command;
-  config: string;
-  date: Unix.tm;
-  status: status
-}
-
-val make : cmd:Lwt_process.command -> config:string -> t
+val make : cmd:Lwt_process.command -> t
 val resurect : db_file:string -> (t, [> Error.round]) Lwt_result.t
 val run : t -> (t, [> Error.round]) Lwt_result.t
 val update : t -> (t, [> Error.round]) Lwt_result.t

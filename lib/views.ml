@@ -258,31 +258,29 @@ module Rounds_list : sig
   val table : (Round.t, Error.t) result list -> [> Html_types.tablex] Tyxml.Html.elt
   val action_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
 end = struct 
-  let format_status (round : Round.t) =
-    match round.status with
-    | Pending -> Html.txt "Pending"
+  let format_status (round : Round.t) = 
+    match round with
+    | Pending _ -> Html.txt "Pending"
     | Running _ -> Html.txt "Running"
     | Done {summary; _} ->
         let url = "round/" ^ summary.uuid in
         Html.(a ~a:[a_href url] [txt "Done"])
  
   let format_provers (round : Round.t) =
-    match round.status with
-    | Pending | Running _ -> Html.txt ""
+    match round with
+    | Pending _ | Running _ -> Html.txt ""
     | Done {provers; _} ->
-      (* let pp fmt el = Format.fprintf fmt "%s" el in *)
-      (*let provers = List.map fst info.provers |> sprintf_list pp in*)
       Html.txt (Misc.sprintf_list Helper.pp_prover provers)
  
   let format_uuid (round : Round.t) =
-    match round.status with
-    | Pending | Running _ -> Html.txt ""
+    match round with
+    | Pending _ | Running _ -> Html.txt ""
     | Done {summary; _} ->
         Html.txt summary.uuid
   
   let format_result (round : Round.t) =
-    match round.status with
-    | Pending | Running _ -> Html.txt "Not yet"
+    match round with
+    | Pending _ | Running _ -> Html.txt "Not yet"
     | Done {summary; _} ->
         let str = Format.sprintf "%i/%i" summary.ctr_suc_pbs summary.ctr_pbs in
         Html.txt str
@@ -290,10 +288,10 @@ end = struct
   let row ~number round =
     match round with 
     | Ok (round : Round.t) -> begin
-      let date = round.date |> Helper.format_date in
+      let date = Misc.now () |> Helper.format_date in
       let check_selector =
-        match round.status with
-        | Pending | Running _ -> []
+        match round with
+        | Pending _ | Running _ -> []
         | Done {summary; _} ->
           [check_selector ~number (Dream.to_base64url summary.uuid)]
       in
@@ -302,7 +300,6 @@ end = struct
           <th>" check_selector "</th>\
           <td>" [format_provers round] "</td>\
           <td>" [format_uuid round] "</td>\
-          <td class='text-center'>" [Html.txt round.config] "</td>\
           <td class='text-center'>" [Html.txt date] "</td>\
           <td class='text-center'>" [format_result round] "</td>\
           <td class='text-center'>" [format_status round] "</td>\
@@ -313,7 +310,7 @@ end = struct
       [%html "\
         <tr>\
           <th></th>\
-          <td colspan='6'>\
+          <td colspan='5'>\
             <span class='badge bg-danger'>Error</span>\
           </td>\
         </tr>\
@@ -329,7 +326,6 @@ end = struct
             <th>Select</th>\
             <th>Prover</th>\
             <th>Uuid</th>\
-            <th class='text-center'>Config</th>\
             <th class='text-center'>Date</th>\
             <th class='text-center'>Result</th>\
             <th class='text-center'>Status</th>\

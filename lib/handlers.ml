@@ -176,7 +176,6 @@ let handle_schedule_round request =
     ; "-p" 
     ; "alt-ergo" 
     ; Options.tests_dir|]) 
-    ~config:"default" 
   in
   Ok ({queue=Rounds_queue.push new_round ctx.queue} |> Context.set))
   >>= Helper.redirect_or_error_response request ~path:"/"

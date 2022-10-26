@@ -17,7 +17,7 @@ let make ~dir =
   (fun round1 round2 -> 
     let open Round in
     match (round1, round2) with
-    | Ok {date=date1; _}, Ok {date=date2; _} ->
+    | Ok (Done {done_since=date1; _}), Ok (Done {done_since=date2; _}) ->
         let date1 = Unix.mktime date1 |> fst in
         let date2 = Unix.mktime date2 |> fst in
         Int.of_float (date2 -. date1)
@@ -29,12 +29,12 @@ let rec update {lst; pos} =
   let new_pos = ref pos in
   let lst = List.mapi (fun j round ->
     match (pos, round) with 
-    | Some i, Ok ({status = Pending; _} as round : Round.t) when i = j -> 
+    | Some i, Ok (Pending _ as round : Round.t) when i = j -> 
         Round.run round
-    | Some i, Ok ({status = Done _; _} as round : Round.t) when i = j ->
+    | Some i, Ok (Done _ as round : Round.t) when i = j ->
         new_pos := if j > 0 then Some (j-1) else None;
         Lwt_result.return round
-    | Some i, Ok ({status = Running _; _} as round : Round.t) when i = j ->
+    | Some i, Ok (Running _ as round : Round.t) when i = j ->
         Round.update round
     | Some i, Error err when i = j -> 
         new_pos := if j > 0 then Some (j-1) else None;
@@ -63,9 +63,9 @@ let find_by_uuid {lst; _} uuid =
     |> fst
   in
   List.find_opt (fun (round : Round.t) ->
-    match round.status with
+    match round with
       | Done {summary; _} -> String.equal uuid summary.uuid
-      | Pending | Running _ -> false
+      | Pending _ | Running _ -> false
   ) lst
   |> Option.to_result ~none:`Round_not_found
   |> Lwt.return

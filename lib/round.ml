@@ -1,114 +1,76 @@
 open Syntax
 
 module Process : sig
-  type t = private {
-    inotify: Lwt_inotify.t;
-    handler: Lwt_process.process_none;
-    stdout: out_channel;
-    stderr: out_channel;
-    db_file: string;
-  }
+  type t
 
-  val run :
-    cmd:Lwt_process.command ->
-    config:string ->
-     (t, [> Error.process]) Lwt_result.t
-
+  val run : cmd:Lwt_process.command -> t
   val stop : t -> Unix.process_status Lwt.t
   val is_done : t -> bool
+  val pp_output : t Fmt.t
 end = struct
   type t = {
-    inotify: Lwt_inotify.t;
     handler: Lwt_process.process_none;
-    stdout: out_channel;
-    stderr: out_channel;
-    db_file: string;
+    stdout: string;
+    stderr: string;
   }
 
-  let rec wait_db_file =
-    let is_db file =
-      String.equal (Filename.extension file) ".sqlite"
-    in
-    fun inotify ->
-      Lwt_inotify.read inotify 
-      >>= function
-        | (_, [Inotify.Create], _, Some file) when is_db file -> 
-            Lwt_result.return file
-        | _ -> wait_db_file inotify
-
-  let wait_terminate handler = 
-    handler#status >|= fun rc -> Error rc
-
-  let run ~cmd ~config =
-    ignore config;
-    let name = fst cmd in
-    let* inotify = Lwt_inotify.create () in
-    let* _ =
-      Lwt_inotify.add_watch inotify Options.benchpress_share_dir
-        [Inotify.S_Create]
-    in
-    let (stdout_file, stdout) = Filename.open_temp_file name "stdout" in
-    let stdout_fd = Unix.descr_of_out_channel stdout in
-    let (stderr_file, stderr) = Filename.open_temp_file name "stderr" in
-    let stderr_fd = Unix.descr_of_out_channel stderr in
-    Dream.info (fun log -> log "Ready to run %s" name);
+  let run ~cmd =
+    let name = Format.sprintf "%s_" (fst cmd) in
+    let (stdout, stdout_ch) = Filename.open_temp_file name ".stdout" in
+    let stdout_fd = Unix.descr_of_out_channel stdout_ch in
+    let (stderr, stderr_ch) = Filename.open_temp_file name ".stderr" in
+    let stderr_fd = Unix.descr_of_out_channel stderr_ch in
     let handler = Lwt_process.open_process_none ~stdout:(`FD_move stdout_fd)
       ~stderr:(`FD_move stderr_fd) cmd in
-    Dream.info (fun log -> log "Running %s" name);
-    Lwt.choose [wait_db_file inotify; wait_terminate handler]
-    >>= function
-      | Ok db_file ->
-          Dream.info (fun log -> log "Found the database %s" db_file);
-          Lwt_result.return {inotify; stdout; stderr; handler; db_file}
-      | Error rc ->
-          let stdout = open_in stdout_file in 
-          let stderr = open_in stderr_file in 
-          Dream.error (fun log -> log "\
-            Cannot find the database@,\
-            Error code: %a@,\
-            Standard output: @,\
-            %s@,\
-            Error output: @,\
-            %s@,\
-            " 
-            Misc.pp_error_code rc
-            (File.read_all stdout)
-            (File.read_all stderr));
-          Lwt_result.fail `Db_not_found
-
-  let stop {handler; stdout; stderr; db_file; _} =
+    {handler; stdout; stderr}
+  
+  let stop {handler; _} =
     handler#terminate;
-    Out_channel.close stdout;
-    Out_channel.close stderr;
-    Unix.unlink db_file;
     handler#status
- 
+
   let is_done {handler; _} =
     match handler#state with
       | Running -> false
       | Exited _ -> true
+
+  let readall_and_close filename = 
+    let ch = open_in filename in
+    let content = File.read_all ch in
+    In_channel.close ch;
+    content
+
+  let pp_output fmt ({stdout; stderr; _} as round) =
+    if is_done round then
+      Format.fprintf fmt "\
+        Standard output: @,\
+        %s@,\
+        Error output: @,\
+        %s@,\
+      " 
+      (readall_and_close stdout)
+      (readall_and_close stderr)
+    else 
+      Format.fprintf fmt "Output is not ready"
 end
 
-let now () = Unix.time () |> Unix.localtime
-
-type status =
-  | Pending
-  | Running of Process.t
+type t =
+  | Pending of {
+    pending_since: Unix.tm;
+    cmd: Lwt_process.command
+  }
+  | Running of {
+    running_since: Unix.tm;
+    watcher: Lwt_inotify.t;
+    proc: Process.t;
+  }
   | Done of {
+    done_since: Unix.tm;
     db_file: string;
     summary: Models.Round_summary.t;
     provers: Models.Prover.t list
   }
 
-type t = {
-  cmd: Lwt_process.command;
-  config: string;
-  date: Unix.tm;
-  status: status
-}
-
-let make ~cmd ~config =
-  {cmd; config; date = now (); status = Pending}
+let make ~cmd = Pending {pending_since = Misc.now(); cmd}
 
 let retrieve_info ~db_file =
   let+? summary =
@@ -118,60 +80,86 @@ let retrieve_info ~db_file =
     Models.retrieve ~db_file
       (Models.Prover.select ~name:None ~version:None)
   in
-  let date, status =
-    (summary.running_at, Done {db_file; summary; provers})
-  in
-  {cmd = ("",[||]); config = "default"; date; status}
+  Done {
+    done_since = summary.running_at; 
+    db_file; 
+    summary; 
+    provers
+  }
 
 let resurect ~db_file = retrieve_info ~db_file
 
-let run ({cmd; config; status; _} as round) =
-  match status with
-  | Pending -> begin
-      let+? proc = Process.run ~cmd ~config in
-      {round with date = now (); status = Running proc}
+let run = function
+  | Pending {cmd; _} -> begin
+      let name = fst cmd in
+      Dream.info (fun log -> log "Ready to run %s" name);
+      let proc = Process.run ~cmd in
+      Dream.info (fun log -> log "Running %s" name);
+      let* watcher = Lwt_inotify.create () in
+      let+ _ =
+        Lwt_inotify.add_watch watcher Options.benchpress_share_dir
+        [Inotify.S_Create]
+      in
+      Ok (Running {
+        running_since = Misc.now ();
+        watcher;
+        proc
+      })
     end
   | Running _ | Done _ -> Lwt_result.fail `Is_running
 
-let update ({status; _} as round) =
-  match status with
-  | Running ({db_file; _} as trace) ->
-    if Process.is_done trace then
-      retrieve_info ~db_file
-    else Lwt_result.return round
-  | Pending | Done _ -> Lwt_result.return round
+let find_db_file =
+  let is_db file =
+    String.equal (Filename.extension file) ".sqlite"
+  in
+  fun inotify ->
+    Lwt_inotify.read inotify 
+    >>= function
+      | (_, [Inotify.Create], _, Some file) when is_db file -> 
+          Lwt_result.return file
+      | _ -> Lwt_result.fail `Db_not_found 
 
-let stop ({status; _} as round) =
-  match status with
-  | Running trace when not @@ Process.is_done trace ->
-      let+ rc = Process.stop trace in
+let update round =
+  match round with
+  | Running {proc; watcher; _} -> 
+      if Process.is_done proc then
+        find_db_file watcher >>= function
+        | Ok db_file -> 
+            Dream.debug (fun log -> log "Found the database %s" db_file);
+            retrieve_info ~db_file
+        | Error err ->
+            Dream.debug (fun log -> log "%a" Process.pp_output proc);
+            Lwt_result.fail err
+
+      else Lwt_result.return round
+  | Pending _ | Done _ -> Lwt_result.return round
+
+let stop = function
+  | Running {proc; _} when not @@ Process.is_done proc ->
+      let+ rc = Process.stop proc in
       Error (`Stopped rc)
-  | Pending | Running _ | Done _ -> Lwt_result.return round
+  | (Pending _ | Running _ | Done _) as round -> Lwt_result.return round
 
-let db_file {status; _} =
-  match status with
-  | Pending | Running _ -> Lwt_result.fail `Db_not_found
-  | Done {db_file; _} -> Lwt_result.return db_file
-
-let is_done {status; _} =
-  match status with
-  | Pending -> false
-  | Running proc -> Process.is_done proc
+let is_done = function
+  | Pending _ -> false
+  | Running {proc; _} -> Process.is_done proc
   | Done _ -> true
 
-let problem ~name {status; _} =
-  match status with
+let db_file = function
+  | Done {db_file; _} -> Lwt_result.return db_file
+  | Pending _ | Running _ -> Lwt_result.fail `Not_done
+
+let problem ~name = function
   | Done {db_file; _} ->
       Models.retrieve ~db_file
       (Models.Problem.select_one ~name)
-  | Pending | Running _ ->
+  | Pending _ | Running _ ->
       Lwt_result.fail `Not_done
 
-let problems ?(only_diff=false) ?name ?res ?expected_res ?errcode {status; _} =
-  match status with
+let problems ?(only_diff=false) ?name ?res ?expected_res ?errcode = function
   | Done {db_file; _} -> 
       Models.retrieve ~db_file
       (Models.Problem.select ~name ~res ~expected_res ~errcode ~only_diff)
-  | Pending | Running _ -> 
+  | Pending _ | Running _ -> 
       Lwt_result.fail `Not_done
 
