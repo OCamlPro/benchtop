@@ -12,4 +12,4 @@ let tests_dir =
 
 let configs_dir = List.hd Location.Sites.configs
 
-
+let number_of_jobs = string_of_int 60

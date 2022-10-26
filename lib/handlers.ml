@@ -130,7 +130,6 @@ let pp_bp_config ~binary fmt () =
     ("alt-ergo", version)
   in
   Format.fprintf fmt "\
-  (j 60)@\n\
   @[<v 1>(prover@ \
     @[<v 1>(name ae-read-status)@ \
       @[<v 1>(cmd \"grep :status $file\")@ \
@@ -173,6 +172,8 @@ let handle_schedule_round request =
     ("benchpress", [|
       "benchpress"
     ; "run"
+    ; "-j"
+    ; Options.number_of_jobs
     ; "-c"
     ; config_path
     ; "-p" 
