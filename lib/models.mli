@@ -49,7 +49,7 @@ module Prover : sig
 end
 
 module Problem : sig
-  open Fields 
+  open Fields
 
   type t = private {
     prover_name: string;
@@ -64,22 +64,31 @@ module Problem : sig
     rtime: float;
     uuid: string
   }
+
+  val count :
+    name:string option ->
+    res:Res.t option ->
+    expected_res:Res.t option ->
+    errcode:Errcode.t option ->
+    only_diff:bool -> 
+    (int, [> Error.sql]) request
  
-  val select : 
-    name:string option -> 
-    res:Res.t option -> 
-    expected_res:Res.t option -> 
-    errcode:Errcode.t option -> 
+  val select :
+    name:string option ->
+    res:Res.t option ->
+    expected_res:Res.t option ->
+    errcode:Errcode.t option ->
     only_diff:bool ->
+    offset:int ->
     (t list, [> Error.sql]) request
 
-  val select_one : 
-    name:string -> 
+  val select_one :
+    name:string ->
     (t, [> Error.sql]) request
 end
 
 module Round_summary : sig
-  open Fields 
+  open Fields
 
   type t = private {
     uuid: string;
@@ -108,5 +117,9 @@ module Problem_diff : sig
     rtime_2: float
   }
 
-  val select : unit -> (t list, [> Error.sql]) request 
+  val count : unit -> (int, [> Error.sql]) request
+
+  val select :
+    offset:int ->
+    (t list, [> Error.sql]) request
 end 

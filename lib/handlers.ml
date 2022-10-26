@@ -96,10 +96,23 @@ let handle_round_detail request =
       Helper.look_up_get_opt_param request "only_diff"
       |> Option.is_some
     in
-    Helper.look_up_param request "uuid"
-    >>? Rounds_queue.find_by_uuid ctx.queue
-    >>? Round.problems ?name ?res ?expected_res ?errcode ~only_diff
-    >|? Views.render_round_detail request
+    let offset = Option.bind
+      (Helper.look_up_get_opt_param request "offset") 
+      int_of_string_opt
+      |> Option.value ~default:0 
+    in
+    let*? round = 
+      Helper.look_up_param request "uuid"
+      >>? Rounds_queue.find_by_uuid ctx.queue
+    in
+    let*? summary = Round.summary round in
+    let*? total = 
+      Round.count ?name ?res ?expected_res ?errcode ~only_diff round 
+    in 
+    let+? pbs = 
+      Round.problems ?name ?res ?expected_res ?errcode ~only_diff ~offset round
+    in
+    Views.render_round_detail request ~offset ~total summary pbs
   in
   Lwt.bind view Helper.view_or_error_to_response
 
@@ -200,14 +213,15 @@ module Actions = struct
         (Dream.from_base64url value) :: acc 
       else acc
     ) [] lst
-
-  let compare db_file1 db_file2 =
-    Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 
-      (Problem_diff.select ()))
 end
 
 let handle_rounds_diff request = 
   let ctx = Context.get () in
+  let offset = Option.bind
+    (Helper.look_up_get_opt_param request "offset") 
+    int_of_string_opt
+    |> Option.value ~default:0
+  in
   let get_db_file uuid =
     Helper.look_up_param request uuid
     >>? Rounds_queue.find_by_uuid ctx.queue
@@ -216,7 +230,8 @@ let handle_rounds_diff request =
   Helper.view_or_error_to_response =<<
   let*? db_file1 = get_db_file "uuid1"
   and*? db_file2 = get_db_file "uuid2" in
-  Actions.compare db_file1 db_file2
+  Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 
+    (Problem_diff.select ~offset))
   >|? Views.render_rounds_diff request
 
 (* TODO: Clean up *)

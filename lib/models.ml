@@ -131,6 +131,21 @@ module Problem = struct
     uuid: string
   }
 
+  let count =
+    [%rapper
+      get_one "\
+        SELECT \
+          @int{COUNT(file)}
+        FROM prover_res \
+        WHERE \
+          (file = %string?{name} OR %string?{name} IS NULL) AND \
+          (res = %Res?{res} OR %Res?{res} IS NULL) AND \
+          (file_expect = %Res?{expected_res} OR %Res?{expected_res} \
+            IS NULL) AND \
+          (errcode = %Errcode?{errcode} OR %Errcode?{errcode} IS NULL) AND \
+          (NOT %bool{only_diff} OR (res <> file_expect))\ 
+      "]
+
   let select =
     [%rapper
       get_many "\
@@ -155,7 +170,8 @@ module Problem = struct
           (file_expect = %Res?{expected_res} OR %Res?{expected_res} \
             IS NULL) AND \
           (errcode = %Errcode?{errcode} OR %Errcode?{errcode} IS NULL) AND \
-          (NOT %bool{only_diff} OR (res <> file_expect))\
+          (NOT %bool{only_diff} OR (res <> file_expect)) \
+        LIMIT 50 OFFSET %int{offset} 
       " record_out]
 
   let select_one =
@@ -223,6 +239,15 @@ module Problem_diff = struct
     rtime_2: float
   }
 
+  let count = 
+    [%rapper
+      get_one "\
+        SELECT \
+          @int{COUNT(p1.file)}
+        FROM main.prover_res as p1, other.prover_res as p2 \
+        WHERE p1.file = p2.file\
+      "]
+
   let select =
     [%rapper
       get_many "\
@@ -239,6 +264,7 @@ module Problem_diff = struct
           p1.rtime as @float{rtime_1}, \
           p2.rtime as @float{rtime_2} \
         FROM main.prover_res as p1, other.prover_res as p2 \
-        WHERE p1.file = p2.file\
+        WHERE p1.file = p2.file \
+        LIMIT 50 OFFSET %int{offset}\
       " record_out]
 end

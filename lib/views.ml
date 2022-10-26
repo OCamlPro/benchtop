@@ -52,7 +52,8 @@ end = struct
     | Unsat -> "text-primary"
     | Unknown -> "text-orange"
     | Error -> "text-danger"
-
+  
+  (* TODO: move this function in Models module. *)
   let pp_prover fmt (prover : Models.Prover.t) =
     if String.length prover.version > 0 then
       Format.fprintf fmt "%s: %s" prover.name prover.version
@@ -60,7 +61,7 @@ end = struct
       Format.fprintf fmt "%s" prover.name
 end 
 
-let navbar content =
+let header_navbar content =
   [%html "\
     <div class='container-fluid d-wrap flex-row flex-wrap'>\
       <a class='navbar-brand text-primary' href='#'>Benchtop</a>\
@@ -78,6 +79,15 @@ let navbar content =
       </div>\ 
     </div>\
   "]
+
+let footer_navbar content =
+  [%html "\
+    <div class='container-fluid d-wrap flex-row flex-wrap'>\
+    " content "\
+    </div>\
+  "]
+
+
 
 let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
   let str = Format.sprintf "Benchtop -- %s" subtitle in
@@ -106,21 +116,23 @@ let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
       </head>\
       <body>\
         <header class='navbar navbar-expand-lg navbar-light \
-          bg-light sticky-top'>\
+          bg-light sticky-top border-bottom'>\
           " hcontent "\
         </header>\
         <main>\
           " content "\
         </main>\
-        <footer>\
+        <footer class='navbar navbar-expand-lg navbar-light bg-light \
+          sticky-bottom border-top'>\
           " fcontent "\
         </footer>\
       </body>\
     </html>\
   "]
 
+(* TODO: improve the display of error. *)
 let render_error ~msg =
-  let navbar = navbar []
+  let navbar = header_navbar []
   in
   let%html msg = 
     "<div>" [Html.txt msg] "</div>"
@@ -135,6 +147,58 @@ let check_selector ~number value =
     <input class='form-check-input' type='checkbox' form='action-form' \
       id='"id"' name='"id"' value='"value"'/>\
   "]
+
+let pagination ~limit ~offset ~total =
+  let number_of_pages = total / limit in
+  let url_of_offset offset = Fmt.str "?offset=%i" offset in
+  let prev_or_next_link ~symbol ~offset ~is_prev =
+    let offset, disabled = 
+      if is_prev && offset > 0 then
+        (offset - 1, "")
+      else if not is_prev && offset < number_of_pages then
+        (offset + 1, "")
+      else (offset, "disabled")
+    in
+    let aria_label = if is_prev then "previous" else "next" in
+    [%html "\
+      <li class='" ["page-item"; disabled] "'>\
+        <a class='page-link' href='" (url_of_offset offset) "' \
+          aria-label='" [aria_label] "'>\
+          <span aria-hidden='true'>" [Html.txt symbol] "</span>\
+        </a>\
+      </li>\
+    "]
+  in
+  let page_link ~offset i =
+    let is_active = if Int.equal offset i then "active" else "" in
+    [%html "\
+      <li class='" ["page-item"; is_active] "'>\
+        <a class='page-link' href='" (url_of_offset i) "'>\
+        " [Html.txt (string_of_int i)] "
+        </a>\
+      </li>\
+    "]
+  in
+  let page_links offset =
+    let lst = ref [] in
+    for i = number_of_pages downto 0 do
+      lst := page_link ~offset i :: !lst
+    done;
+    !lst
+  in
+  let links =  
+      [prev_or_next_link ~symbol:"&laquo;" ~offset ~is_prev:true] 
+    @ (page_links offset) 
+    @ [prev_or_next_link ~symbol:"&raquo;" ~offset ~is_prev:false]
+  in
+  [%html "\
+    <nav aria-label='pagination'>\
+      <ul class='pagination'>\
+        " links "\
+      </ul>\
+    </nav>\
+  "]
+  
 
 (* BUG: placeholder option does not work properly. *)
 module Selector = struct
@@ -278,7 +342,6 @@ end = struct
     in 
     Fmt.str "since %a" Helper.pp_date date 
  
-
   let format_uuid (round : Round.t) =
     match round with
     | Pending _ | Running _ -> Html.txt ""
@@ -350,7 +413,7 @@ end
 let render_rounds_list request ~is_running rounds provers =
   let open Rounds_list in
   let rounds_table = table rounds in
-  let navbar = navbar 
+  let navbar = header_navbar 
     [benchpress_form request ~is_running provers; action_form request]
   in
   page_layout ~subtitle:"Rounds" ~hcontent:[navbar] [rounds_table]
@@ -473,11 +536,19 @@ end = struct
     "]
 end
 
-let render_round_detail request pbs =
-  let open Problems_list in 
+let render_round_detail request ~offset ~total 
+  (_summary : Models.Round_summary.t) pbs =
+  let open Problems_list in
   let table = table pbs request in
-  let navbar = navbar [filter_form request; action_form request] in
-  page_layout ~subtitle:"Round" ~hcontent:[navbar] [table]
+  let (header_navbar, footer_navbar) = (
+      header_navbar [filter_form request; action_form request]
+    , footer_navbar [pagination ~limit:50 ~offset ~total])
+  in
+  page_layout 
+    ~subtitle:"Round" 
+    ~hcontent:[header_navbar] 
+    ~fcontent:[footer_navbar] 
+    [table]
   |> Helper.html_to_string
 
 let render_problem_trace _request (pb : Models.Problem.t) =
@@ -617,7 +688,7 @@ end
 
 let render_rounds_diff request pbs_diff =
   let open Problem_diffs_list in
-  let navbar = navbar [] in
+  let navbar = header_navbar [] in
   page_layout ~subtitle:"Difference" ~hcontent:[navbar] 
     [table pbs_diff request]
   |> Helper.html_to_string

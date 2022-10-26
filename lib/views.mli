@@ -7,7 +7,10 @@ val render_rounds_list :
   string
 
 val render_round_detail : 
-  Dream.request -> 
+  Dream.request ->
+  offset:int ->
+  total:int ->
+  Models.Round_summary.t ->
   Models.Problem.t list -> 
   string 
 

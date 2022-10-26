@@ -30,6 +30,7 @@ val run : t -> (t, [> Error.round]) Lwt_result.t
 val update : t -> (t, [> Error.round]) Lwt_result.t
 val stop : t -> (t, [> Error.round]) Lwt_result.t
 val db_file : t -> (string, [> Error.round]) Lwt_result.t
+val summary : t -> (Models.Round_summary.t, [> Error.round]) Lwt_result.t
 val is_done : t -> bool
 
 val compare : t -> t -> int
@@ -45,4 +46,13 @@ val problems :
   ?res: Models.Fields.Res.t ->
   ?expected_res: Models.Fields.Res.t ->
   ?errcode: Models.Fields.Errcode.t ->
+  offset: int ->
   t -> (Models.Problem.t list, [> Error.round]) Lwt_result.t
+
+val count :
+  ?only_diff: bool ->
+  ?name: string ->
+  ?res: Models.Fields.Res.t ->
+  ?expected_res: Models.Fields.Res.t ->
+  ?errcode: Models.Fields.Errcode.t ->
+  t -> (int, [> Error.round]) Lwt_result.t

@@ -149,6 +149,10 @@ let db_file = function
   | Done {db_file; _} -> Lwt_result.return db_file
   | Pending _ | Running _ -> Lwt_result.fail `Not_done
 
+let summary = function
+  | Done {summary; _} -> Lwt_result.return summary
+  | Pending _ | Running _ -> Lwt_result.fail `Not_done
+
 let compare =
   let compare_time t1 t2 = 
     let t1 = Unix.mktime t1 |> fst in
@@ -176,10 +180,22 @@ let problem ~name = function
   | Pending _ | Running _ ->
       Lwt_result.fail `Not_done
 
-let problems ?(only_diff=false) ?name ?res ?expected_res ?errcode = function
-  | Done {db_file; _} -> 
-      Models.retrieve ~db_file
-      (Models.Problem.select ~name ~res ~expected_res ~errcode ~only_diff)
-  | Pending _ | Running _ -> 
-      Lwt_result.fail `Not_done
+let problems ?(only_diff=false) ?name ?res ?expected_res ?errcode ~offset =
+  function
+    | Done {db_file; _} ->
+        Models.retrieve ~db_file
+        (Models.Problem.select ~name ~res ~expected_res
+          ~errcode ~only_diff ~offset)
+    | Pending _ | Running _ -> 
+        Lwt_result.fail `Not_done
+
+let count ?(only_diff=false) ?name ?res ?expected_res ?errcode =
+  function
+    | Done {db_file; _} ->
+        Models.retrieve ~db_file
+        (Models.Problem.count ~name ~res ~expected_res
+          ~errcode ~only_diff)
+    | Pending _ | Running _ -> 
+        Lwt_result.fail `Not_done
+
 
