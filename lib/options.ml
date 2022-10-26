@@ -12,4 +12,5 @@ let tests_dir =
 
 let configs_dir = List.hd Location.Sites.configs
 
-let number_of_jobs = string_of_int 60
+let number_of_jobs = 60
+let prover_timeout = 30

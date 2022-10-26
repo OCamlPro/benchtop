@@ -144,10 +144,11 @@ let pp_bp_config ~binary fmt () =
   @[<v 1>(prover@ \
     @[<v 1>(name %s)@ \
       @[<v 1>(version %s)@ \
-        @[<v 1>(cmd \"%s $file\")@ \
+        @[<v 1>(cmd \"%s --timelimit=$timeout $file\")@ \
           @[<v 1>(sat \"^sat\")@ \
             @[<v 1>(unsat \"Valid|(^unsat)\")@ \
-              @[<v 1>(unknown \"(I Don't Know)|(^unsat)\"))@]@]@]@]@]@]@]@\n"
+              @[<v 1>(unknown \"(I Don't Know)|(^unsat)\")@ \
+                @[<v 1>(timeout \"^timeout\"))@]@]@]@]@]@]@]@]@]\n"
   Options.tests_dir
   name
   version
@@ -173,11 +174,13 @@ let handle_schedule_round request =
       "benchpress"
     ; "run"
     ; "-j"
-    ; Options.number_of_jobs
+    ; string_of_int Options.number_of_jobs
     ; "-c"
     ; config_path
+    ; "-t"
+    ; string_of_int Options.prover_timeout
     ; "-p" 
-    ; "alt-ergo" 
+    ; "alt-ergo"
     ; Options.tests_dir|]) 
   in
   Ok ({queue=Rounds_queue.push new_round ctx.queue} |> Context.set))
