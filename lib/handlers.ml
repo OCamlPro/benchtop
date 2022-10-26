@@ -149,7 +149,7 @@ let pp_bp_config ~binary fmt () =
         @[<v 1>(unknown \":status unknown\")@ \
           @[<v 1>(unknown \"\")@ \
             @[<v 1>(sat \":status sat\")@ \
-              @[<v 1>(unsat \":status unsat\"))@]@]@]@]@]@]@]@]\n\
+              @[<v 1>(unsat \":status unsat|:status valid\"))@]@]@]@]@]@]@]@]\n\
   @[<v 1>(dir@ \
     @[<v 1>(path \"%s\")@ \
       @[<v 1>(pattern \".*.ae|.*.smt2\")@ \

@@ -553,6 +553,7 @@ let render_round_detail request ~offset ~total
 
 let render_problem_trace _request (pb : Models.Problem.t) =
   let header = Format.sprintf "Problem %s" (Filename.basename pb.name) in
+  (* BUG: we should recover if the file cannot be read. *)
   let problem_content = File.read_all (open_in pb.name) in
   let%html content = "\
     <div class='container-fluid'>\
