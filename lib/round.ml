@@ -72,7 +72,7 @@ type t =
 
 let make ~cmd = Pending {pending_since = Misc.now(); cmd}
 
-let retrieve_info ~db_file =
+let retrieve_info db_file =
   let+? summary =
     Models.retrieve ~db_file
       (Models.Round_summary.retrieve ())
@@ -87,7 +87,7 @@ let retrieve_info ~db_file =
     provers
   }
 
-let resurect ~db_file = retrieve_info ~db_file
+let resurect db_file = retrieve_info db_file
 
 let run = function
   | Pending {cmd; _} -> begin
@@ -126,7 +126,7 @@ let update round =
         find_db_file watcher >>= function
         | Ok db_file -> 
             Dream.debug (fun log -> log "Found the database %s" db_file);
-            retrieve_info ~db_file
+            retrieve_info db_file
         | Error err ->
             Dream.debug (fun log -> log "%a" Process.pp_output proc);
             Lwt_result.fail err
@@ -148,6 +148,26 @@ let is_done = function
 let db_file = function
   | Done {db_file; _} -> Lwt_result.return db_file
   | Pending _ | Running _ -> Lwt_result.fail `Not_done
+
+let compare =
+  let compare_time t1 t2 = 
+    let t1 = Unix.mktime t1 |> fst in
+    let t2 = Unix.mktime t2 |> fst in
+    Float.compare t1 t2
+  in 
+  fun round1 round2 -> match round1, round2 with
+  | Pending _, Running _ 
+  | Running _, Done _ 
+  | Pending _, Done _ -> -1
+  | Running _, Pending _ 
+  | Done _, Running _ 
+  | Done _, Pending _ -> 1
+  | Pending {pending_since=t1; _}, Pending {pending_since=t2; _} ->
+      compare_time t1 t2
+  | Running {running_since=t1; _}, Running {running_since=t2; _} ->
+      compare_time t1 t2
+  | Done {done_since=t1; _}, Done {done_since=t2; _} ->
+      compare_time t1 t2
 
 let problem ~name = function
   | Done {db_file; _} ->

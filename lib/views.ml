@@ -2,7 +2,7 @@ open Tyxml
 
 module Helper : sig
   val html_to_string : Tyxml.Html.doc -> string
-  val format_date : Unix.tm -> string
+  val pp_date : Unix.tm Fmt.t
   val csrf_tag : Dream.request -> [> Html_types.input] Tyxml.Html.elt
  
   val string_of_int : int -> string
@@ -22,8 +22,8 @@ end = struct
   let html_to_string html =
     Format.asprintf "%a@." (Html.pp ~indent:true ()) html
 
-  let format_date (tm : Unix.tm) = 
-    Format.sprintf "%02i/%02i/%04i %02i:%02i:%02i"
+  let pp_date fmt (tm : Unix.tm) = 
+    Format.fprintf fmt "%02i/%02i/%04i %02i:%02i:%02i"
       tm.tm_mday (tm.tm_mon + 1) (tm.tm_year + 1900)
       tm.tm_hour tm.tm_min tm.tm_sec 
 
@@ -118,9 +118,6 @@ let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
       </body>\
     </html>\
   "]
-
-(*let vertical_rule = 
-  [%html {eos|<div class="vr"></div>|eos}]*)
 
 let render_error ~msg =
   let navbar = navbar []
@@ -271,7 +268,17 @@ end = struct
     | Pending _ | Running _ -> Html.txt ""
     | Done {provers; _} ->
       Html.txt (Misc.sprintf_list Helper.pp_prover provers)
+
+  let format_date (round : Round.t) =
+    let date =
+      match round with
+      | Pending {pending_since; _} -> pending_since
+      | Running {running_since; _} -> running_since
+      | Done {done_since; _} -> done_since
+    in 
+    Fmt.str "since %a" Helper.pp_date date 
  
+
   let format_uuid (round : Round.t) =
     match round with
     | Pending _ | Running _ -> Html.txt ""
@@ -288,7 +295,6 @@ end = struct
   let row ~number round =
     match round with 
     | Ok (round : Round.t) -> begin
-      let date = Misc.now () |> Helper.format_date in
       let check_selector =
         match round with
         | Pending _ | Running _ -> []
@@ -300,9 +306,9 @@ end = struct
           <th>" check_selector "</th>\
           <td>" [format_provers round] "</td>\
           <td>" [format_uuid round] "</td>\
-          <td class='text-center'>" [Html.txt date] "</td>\
           <td class='text-center'>" [format_result round] "</td>\
           <td class='text-center'>" [format_status round] "</td>\
+          <td class='text-center'>" [Html.txt (format_date round)] "</td>\
         </tr>\
       "]
     end
@@ -326,9 +332,9 @@ end = struct
             <th>Select</th>\
             <th>Prover</th>\
             <th>Uuid</th>\
-            <th class='text-center'>Date</th>\
             <th class='text-center'>Result</th>\
             <th class='text-center'>Status</th>\
+            <th class='text-center'>Date</th>\
           </tr>\
         </thead>\
         <tbody class='table-group-divider'>\

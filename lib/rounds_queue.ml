@@ -12,23 +12,18 @@ let empty = {lst = []; pos = None}
 let make ~dir =
   let ext_filter = fun str -> String.equal str ".sqlite" in
   File.readdir ~ext_filter dir
-  |> Lwt_list.map_s (fun db_file -> Round.resurect ~db_file)
-  >>= fun rounds -> Lwt.return (List.sort 
-  (fun round1 round2 -> 
-    let open Round in
-    match (round1, round2) with
-    | Ok (Done {done_since=date1; _}), Ok (Done {done_since=date2; _}) ->
-        let date1 = Unix.mktime date1 |> fst in
-        let date2 = Unix.mktime date2 |> fst in
-        Int.of_float (date2 -. date1)
-    | _ -> assert false
+  |> Lwt_list.map_s Round.resurect
+  >>= fun rounds -> Lwt.return (List.sort (fun round1 round2 ->
+    match round1, round2 with
+    | Ok round1, Ok round2 -> Round.compare round2 round1
+    | _ -> failwith "Resurecting round cannot failed"
   ) rounds)
   >|= fun lst -> {lst; pos = None}
 
 let rec update {lst; pos} =
   let new_pos = ref pos in
   let lst = List.mapi (fun j round ->
-    match (pos, round) with 
+    match pos, round with 
     | Some i, Ok (Pending _ as round : Round.t) when i = j -> 
         Round.run round
     | Some i, Ok (Done _ as round : Round.t) when i = j ->
