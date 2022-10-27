@@ -1,12 +1,24 @@
-# Benchtop
+<h1 align="center">Benchtop</h1>
 
-An alternative web interface for Benchpress.
+<p align="center">
+An alternative web interface for Benchpress
+</p>
+
 
 License: BSD.
 
 ## Usage
-Type
 ```sh
-$ benchpress -i interface -p port
+benchtop [--interface=INTERFACE] [--log[=LOG_LEVEL]] [--port=PORT] [OPTION]
 ```
-to run the server on a given interface and port.
+
+## Roadmap to the first release
+- Improve navigation between pages
+- Adding an action to kill benchpress
+- Displaying progress information during the benchmarks
+- Adding a page listing available tests
+- Custom config for benchpress
+- Running again selected tests
+- Cleaning up and writing documentation
+- Git support
+- Support for other SMT solvers
