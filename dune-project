@@ -34,8 +34,7 @@
  (tags
   (topics "to describe" your project))
  (sites
-   (share tests)
-   (share configs)
-   (bin css)))
+   (bin css)
+   (bin scripts)))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project

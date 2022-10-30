@@ -1,4 +1,3 @@
-val render_error : msg:string -> string
 val render_rounds_list : 
   Dream.request -> 
   is_running:bool -> 

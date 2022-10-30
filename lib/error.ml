@@ -64,19 +64,32 @@ let pp_round fmt = function
 let pp_form _fmt = function
   | _ -> failwith "not implemented yet"
 
-let pp_param : 'a. ([< param] as 'a) Fmt.t =
-  fun fmt -> function
-    | #form as err -> pp_form fmt err
-    | `Key_not_found str -> 
-        Format.fprintf fmt "Cannot found the key %s" str
+let pp_param fmt = function
+  | #form as err -> pp_form fmt err
+  | `Key_not_found str -> 
+      Format.fprintf fmt "Cannot found the key %s" str
 
 let pp_misc fmt = function
   | `Cannot_convert_to_base64 -> 
       Format.fprintf fmt "Cannot convert the string to base64"
 
-let pp : 'a. ([< t] as 'a) Fmt.t =
-  fun fmt -> function
-    | #Caqti_error.t as err -> Caqti_error.pp fmt err
-    | #round as err -> pp_round fmt err
-    | #param as err -> pp_param fmt err
-    | #misc as err -> pp_misc fmt err
+let pp fmt = function
+  | #Caqti_error.t as err -> Caqti_error.pp fmt err
+  | #round as err -> pp_round fmt err
+  | #param as err -> pp_param fmt err
+  | #misc as err -> pp_misc fmt err
+
+let show err = 
+  pp Format.str_formatter err;
+  Format.flush_str_formatter ()
+
+let get_session request =
+  Dream.flash_messages request 
+  |> List.assoc_opt "error"
+  |> function
+  | Some str -> Marshal.from_string str 0
+  | None -> None
+
+let set_session request err =
+  Marshal.to_string (Some err) []
+  |> Dream.add_flash_message request "error" 

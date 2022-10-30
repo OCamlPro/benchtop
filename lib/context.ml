@@ -1,7 +1,7 @@
 open Syntax
 
 type t = {
-  queue: Rounds_queue.t;
+  queue: Rounds_queue.t
 }
 
 let ctx : t ref = ref {queue=Rounds_queue.empty}

@@ -14,7 +14,33 @@ module Helper : sig
 
   val pp_prover : Models.Prover.t Fmt.t
   val look_up_param : string -> Dream.request -> string
+
+  val display_error : Dream.request -> [> Html_types.div] Tyxml.Html.elt list
 end = struct
+  let display_error request =
+    match Error.get_session request with
+    | Some err ->
+        [[%html "\
+          <div class='modal fade' id='error-modal' aria-hidden='true' \
+            aria-labelledby='error modal' tabindex='-1'>\
+            <div class='modal-dialog'>\
+              <div class='modal-content'>\
+                <div class='modal-header'>\
+                  <h5 class='modal-title'>Error</h5>\
+                  <button type='button' class='btn-close' \
+                    data-bs-dismiss='modal' aria-label='close'></button>\
+                </div>\
+                <div class='modal-body'>\
+                  <p>\
+                    " [Html.txt (Format.asprintf "%a" Error.pp err)] "\
+                  </p>\
+                </div>\
+              </div>\
+            </div>\
+          </div>\
+        "]]
+      | None -> []
+
   let look_up_param param request =
     let uri = Dream.target request |> Uri.of_string in
     Option.value ~default:"" (Uri.get_query_param uri param)
@@ -87,13 +113,11 @@ let footer_navbar content =
     </div>\
   "]
 
-
-
-let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
+let page_layout request ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
   let str = Format.sprintf "Benchtop -- %s" subtitle in
   let bs_css_url = "https://cdn.jsdelivr.net/npm\
     /bootstrap@5.2.2/dist/css/bootstrap.min.css"
-  in 
+  in
   let bs_css_hash ="sha384-Zenh87qX5JnK2Jl0vWa8Ck2rdkQ2Bzep5IDxbcnCeuOxjzrPF/\
     et3URy9Bv1WTRi"
   in
@@ -113,8 +137,10 @@ let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
         <script src='"bs_script_url"' integrity='"bs_script_hash"' \
           crossorigin='anonymous'></script>\
         <title>" (Html.txt str) "</title>\
-      </head>\
+        <script src='scripts/modal.js'></script>\
+     </head>\
       <body>\
+        " (Helper.display_error request) "\
         <header class='navbar navbar-expand-lg navbar-light \
           bg-light sticky-top border-bottom'>\
           " hcontent "\
@@ -129,16 +155,6 @@ let page_layout ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
       </body>\
     </html>\
   "]
-
-(* TODO: improve the display of error. *)
-let render_error ~msg =
-  let navbar = header_navbar []
-  in
-  let%html msg = 
-    "<div>" [Html.txt msg] "</div>"
-  in
-  page_layout ~subtitle:"Error" ~hcontent:[navbar] [msg]
-  |> Helper.html_to_string
 
 let check_selector ~number value =
   let num = string_of_int number in
@@ -416,7 +432,7 @@ let render_rounds_list request ~is_running rounds provers =
   let navbar = header_navbar 
     [benchpress_form request ~is_running provers; action_form request]
   in
-  page_layout ~subtitle:"Rounds" ~hcontent:[navbar] [rounds_table]
+  page_layout request ~subtitle:"Rounds" ~hcontent:[navbar] [rounds_table]
   |> Helper.html_to_string
 
 module Problems_list : sig
@@ -544,14 +560,15 @@ let render_round_detail request ~offset ~total
       header_navbar [filter_form request; action_form request]
     , footer_navbar [pagination ~limit:50 ~offset ~total])
   in
-  page_layout 
+  page_layout
+    request
     ~subtitle:"Round" 
     ~hcontent:[header_navbar] 
     ~fcontent:[footer_navbar] 
     [table]
   |> Helper.html_to_string
 
-let render_problem_trace _request (pb : Models.Problem.t) =
+let render_problem_trace request (pb : Models.Problem.t) =
   let header = Format.sprintf "Problem %s" (Filename.basename pb.name) in
   (* BUG: we should recover if the file cannot be read. *)
   let problem_content = File.read_all (open_in pb.name) in
@@ -601,7 +618,7 @@ let render_problem_trace _request (pb : Models.Problem.t) =
       </div>\
     </div>\
   " in
-  page_layout ~subtitle:"Problem trace" [content] 
+  page_layout request ~subtitle:"Problem trace" [content] 
   |> Helper.html_to_string
 
 module Problem_diffs_list : sig
@@ -690,6 +707,9 @@ end
 let render_rounds_diff request pbs_diff =
   let open Problem_diffs_list in
   let navbar = header_navbar [] in
-  page_layout ~subtitle:"Difference" ~hcontent:[navbar] 
+  page_layout 
+    request
+    ~subtitle:"Difference"
+    ~hcontent:[navbar] 
     [table pbs_diff request]
   |> Helper.html_to_string

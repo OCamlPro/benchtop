@@ -42,3 +42,7 @@ type t = [
 ]
 
 val pp : [< t] Fmt.t
+val show : [< t] -> string
+
+val get_session : Dream.request -> [< t] option
+val set_session : Dream.request -> [< t] -> unit

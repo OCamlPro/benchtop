@@ -1,13 +1,18 @@
 open Syntax
 
+let previous_page request = 
+  match Dream.header request "Referer" with
+  | Some url -> url
+  | None -> "/"
+
 module Helper : sig
-  val redirect_or_error_response : 
+  val redirect : 
     Dream.request ->
-    path:string ->
-    (_, [< Error.t]) result ->
+    (_, Error.t) result ->
     Dream.response Lwt.t
   
-  val view_or_error_to_response : 
+  val view_or_error_to_response :
+    Dream.request ->
     (string, [< Error.t]) result -> Dream.response Lwt.t
 
   val look_up_get_opt_param : 
@@ -24,20 +29,22 @@ module Helper : sig
     Dream.request ->
     string ->
     (string, [> Error.param]) Lwt_result.t
-end = struct
-  let redirect_or_error_response request ~path = function
-    | Ok _ -> Dream.redirect request path
+end = struct 
+  let redirect request = function
+    | Ok _ ->
+        previous_page request |> Dream.redirect request
     | Error err -> 
         Dream.error (fun log -> log "%a" Error.pp err);
-        Dream.html @@ Views.render_error 
-          ~msg:(Format.asprintf "%a" Error.pp err)
+        Error.set_session request err;
+        previous_page request |> Dream.redirect request
 
-  let view_or_error_to_response = function
+  let view_or_error_to_response request = function
     | Ok view -> Dream.html view
-    | Error err -> 
+    | Error err ->
+        let err = (err :> Error.t) in
         Dream.error (fun log -> log "%a" Error.pp err);
-        Dream.html @@ Views.render_error 
-          ~msg:(Format.asprintf "%a" Error.pp err)
+        Error.set_session request err;
+        previous_page request |> Dream.redirect request
 
   let look_up_get_opt_param request key =
     let uri = Dream.target request |> Uri.of_string in
@@ -74,7 +81,7 @@ let handle_rounds_list request =
     let provers = Models.Prover.readdir ~dir:Options.binaries_dir in
     Ok (Views.render_rounds_list request ~is_running rounds provers) 
   in
-  Lwt.bind view Helper.view_or_error_to_response
+  Lwt.bind view (Helper.view_or_error_to_response request)
 
 let handle_round_detail request =
   let view = 
@@ -114,7 +121,7 @@ let handle_round_detail request =
     in
     Views.render_round_detail request ~offset ~total summary pbs
   in
-  Lwt.bind view Helper.view_or_error_to_response
+  Lwt.bind view (Helper.view_or_error_to_response request)
 
 let handle_problem_trace request = 
   let view =
@@ -128,7 +135,7 @@ let handle_problem_trace request =
     >>? Round.problem ~name
     >|? Views.render_problem_trace request
   in
-  Lwt.bind view Helper.view_or_error_to_response
+  Lwt.bind view (Helper.view_or_error_to_response request)
 
 let pp_bp_config ~binary fmt () =
   let binary_path = Filename.concat Options.binaries_dir binary in
@@ -197,7 +204,7 @@ let handle_schedule_round request =
     ; Options.tests_dir|]) 
   in
   Ok ({queue=Rounds_queue.push new_round ctx.queue} |> Context.set))
-  >>= Helper.redirect_or_error_response request ~path:"/"
+  >>= Helper.redirect request
 
 let handle_stop_round request =
   Dream.form request >>= function
@@ -227,7 +234,7 @@ let handle_rounds_diff request =
     >>? Rounds_queue.find_by_uuid ctx.queue
     >>? Round.db_file
   in
-  Helper.view_or_error_to_response =<<
+  Helper.view_or_error_to_response request =<<
   let*? db_file1 = get_db_file "uuid1"
   and*? db_file2 = get_db_file "uuid2" in
   Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 

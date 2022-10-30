@@ -34,28 +34,30 @@ let server log_level interface port =
   let interface = Option.value interface ~default:"localhost" in
   let port = Option.value port ~default:8080 in
   Dream.initialize_log ~level:log_level ();
-  Dream.serve ~interface ~port 
-  @@ Dream.logger
-  @@ Dream.memory_sessions
+  Dream.(serve ~interface ~port 
+  @@ logger
+  @@ memory_sessions
   @@ header_logger
-  @@ Dream.router [
-      Dream.get "/css/**" @@ Dream.static (List.hd Location.Sites.css)
-    ; Dream.get "/" @@ Handlers.handle_rounds_list
-    ; Dream.scope "/round" [Dream.origin_referrer_check] [
-        Dream.get "/:uuid" @@ Handlers.handle_round_detail
-      ; Dream.get "/:uuid/problem/:problem" 
+  @@ flash
+  @@ router [
+      get "/css/**" @@ static (List.hd Location.Sites.css)
+    ; get "/scripts/**" @@ static (List.hd Location.Sites.scripts)
+    ; get "/" @@ Handlers.handle_rounds_list
+    ; scope "/round" [origin_referrer_check] [
+        get "/:uuid" @@ Handlers.handle_round_detail
+      ; get "/:uuid/problem/:problem" 
         @@ Handlers.handle_problem_trace
-      ; Dream.get "/:uuid1/diff/:uuid2" @@ Handlers.handle_rounds_diff
-      ; Dream.post "/action" @@ Handlers.handle_round_action_dispatcher
+      ; get "/:uuid1/diff/:uuid2" @@ Handlers.handle_rounds_diff
+      ; post "/action" @@ Handlers.handle_round_action_dispatcher
       ]
-    ; Dream.scope "/benchpress" [Dream.origin_referrer_check] [
-        Dream.post "/schedule" @@ Handlers.handle_schedule_round
-      ; Dream.post "/stop" @@ Handlers.handle_stop_round
+    ; scope "/benchpress" [origin_referrer_check] [
+        post "/schedule" @@ Handlers.handle_schedule_round
+      ; post "/stop" @@ Handlers.handle_stop_round
     ]
-    ; Dream.scope "/problems" [Dream.origin_referrer_check] [
-        Dream.get ":uuid" @@ Handlers.handle_problems_list
+    ; scope "/problems" [origin_referrer_check] [
+        get ":uuid" @@ Handlers.handle_problems_list
     ]
-  ]
+  ])
 
 let main log_level interface port =
   Lwt_main.run (
