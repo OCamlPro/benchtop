@@ -152,7 +152,7 @@ let pp_bp_config ~binary fmt () =
   Format.fprintf fmt "\
   @[<v 1>(prover@ \
     @[<v 1>(name ae-read-status)@ \
-      @[<v 1>(cmd \"ripgrep :status $file\")@ \
+      @[<v 1>(cmd \"rg :status $file\")@ \
         @[<v 1>(unknown \":status unknown\")@ \
           @[<v 1>(unknown \"\")@ \
             @[<v 1>(sat \":status sat\")@ \
