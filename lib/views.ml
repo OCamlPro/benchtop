@@ -452,10 +452,11 @@ end = struct
     in
     [%html "
       <tr>\
-        <th>" [check_selector ~number (Dream.to_base64url pb.name)] "</th>\
+        <th>\ 
+          " [check_selector ~number (Dream.to_base64url pb.name)] "\
+        </th>\
         <td>\
-          " [Html.txt (Format.sprintf "%s%s" 
-            pb.prover_name pb.prover_version)] "\
+          " [Html.txt (Format.asprintf "%a" Helper.pp_prover pb.prover)] "\
         </td>\
         <td class='text-break'>\
           <a href='"pb_link"'>" [Html.txt pb.name] "</a>\
@@ -489,8 +490,8 @@ end = struct
         <thead>\
           <tr>\
             <th>Select</th>\
-            <td class='text-center'>Problem</td>\
-            <td class='text-center'>Prover</td>\
+            <td>Prover</td>\
+            <td>Problem</td>\
             <td class='text-center'>Timeout</td>\
             <td class='text-center'>Error code</td>\
             <td class='text-center'>Running time</td>\

@@ -118,8 +118,7 @@ module Problem = struct
   open Fields
 
   type t = {
-    prover_name: string;
-    prover_version: string;
+    prover: Prover.t;
     name: string;
     res: Res.t;
     expected_res: Res.t;
@@ -146,8 +145,23 @@ module Problem = struct
           (NOT %bool{only_diff} OR (res <> file_expect))\ 
       "]
 
-  let select =
-    [%rapper
+  let select, select_one =
+    let function_out ~prover_name ~prover_version ~name ~res ~expected_res 
+      ~timeout ~stdout ~stderr ~errcode ~rtime ~uuid = {
+        prover={
+          name=prover_name; 
+          version=prover_version}; 
+        name; 
+        res; 
+        expected_res; 
+        timeout; 
+        stdout; 
+        stderr; 
+        errcode; 
+        rtime; 
+        uuid}
+    in
+    ([%rapper
       get_many "\
         SELECT \
           prover as @string{prover_name}, \
@@ -172,9 +186,7 @@ module Problem = struct
           (errcode = %Errcode?{errcode} OR %Errcode?{errcode} IS NULL) AND \
           (NOT %bool{only_diff} OR (res <> file_expect)) \
         LIMIT 50 OFFSET %int{offset} 
-      " record_out]
-
-  let select_one =
+      " function_out] function_out,
     [%rapper
       get_one "\
         SELECT \
@@ -194,7 +206,7 @@ module Problem = struct
         WHERE \
           prover.name = prover_res.prover AND \
           file = %string{name}\
-      " record_out]
+      " function_out] function_out)
 end
 
 module Round_summary = struct

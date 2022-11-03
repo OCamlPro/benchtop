@@ -52,8 +52,7 @@ module Problem : sig
   open Fields
 
   type t = private {
-    prover_name: string;
-    prover_version: string;
+    prover: Prover.t;
     name: string;
     res: Res.t;
     expected_res: Res.t;
