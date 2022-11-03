@@ -164,9 +164,12 @@ let check_selector ~number value =
       id='"id"' name='"id"' value='"value"'/>\
   "]
 
-let pagination ~limit ~offset ~total =
+let pagination ~current_uri ~limit ~offset ~total =
   let number_of_pages = total / limit in
-  let url_of_offset offset = Fmt.str "?offset=%i" offset in
+  let uri_of_offset offset = 
+    Uri.add_query_param' current_uri ("offset", string_of_int offset)
+    |> Uri.to_string
+  in
   let prev_or_next_link ~symbol ~offset ~is_prev =
     let offset, disabled = 
       if is_prev && offset > 0 then
@@ -178,7 +181,7 @@ let pagination ~limit ~offset ~total =
     let aria_label = if is_prev then "previous" else "next" in
     [%html "\
       <li class='" ["page-item"; disabled] "'>\
-        <a class='page-link' href='" (url_of_offset offset) "' \
+        <a class='page-link' href='" (uri_of_offset offset) "' \
           aria-label='" [aria_label] "'>\
           <span aria-hidden='true'>" [Html.txt symbol] "</span>\
         </a>\
@@ -189,7 +192,7 @@ let pagination ~limit ~offset ~total =
     let is_active = if Int.equal offset i then "active" else "" in
     [%html "\
       <li class='" ["page-item"; is_active] "'>\
-        <a class='page-link' href='" (url_of_offset i) "'>\
+        <a class='page-link' href='" (uri_of_offset i) "'>\
         " [Html.txt (string_of_int i)] "
         </a>\
       </li>\
@@ -555,10 +558,11 @@ end
 let render_round_detail request ~offset ~total 
   (_summary : Models.Round_summary.t) pbs =
   let open Problems_list in
+  let current_uri = Dream.target request |> Uri.of_string in
   let table = table pbs request in
   let (header_navbar, footer_navbar) = (
       header_navbar [filter_form request; action_form request]
-    , footer_navbar [pagination ~limit:50 ~offset ~total])
+    , footer_navbar [pagination ~current_uri ~limit:50 ~offset ~total])
   in
   page_layout
     request
