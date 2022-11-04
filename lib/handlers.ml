@@ -121,14 +121,14 @@ let pp_bp_config ~binary fmt () =
   (import-prelude false)@\n\
   @[<v 2>(prover@ \
     @[<v 2>(name ae-read-status)@ \
-      @[<v 2>(cmd \"rg :status $file\")@ \
+      @[<v 2>(cmd \"rg --search-zip :status $file\")@ \
         @[<v 2>(unknown \":status unknown\")@ \
           @[<v 2>(unknown \"\")@ \
             @[<v 2>(sat \":status sat\")@ \
               @[<v 2>(unsat \":status unsat|:status valid\"))@]@]@]@]@]@]@]@]@\n\
   @[<v 2>(dir@ \
     @[<v 2>(path \"%s\")@ \
-      @[<v 2>(pattern \".*.ae|.*.smt2\")@ \
+      @[<v 2>(pattern \".*.ae|.*.smt2|.*.zip\")@ \
         @[<v 2>(expect (run ae-read-status)))@]@]@]@]@\n\
   @[<v 2>(prover@ \
     @[<v 2>(name %s)@ \
