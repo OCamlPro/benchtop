@@ -54,16 +54,10 @@ end = struct
 
   let string_of_errcode (errcode : Models.Errcode.t) =
     match errcode with
-    | Success -> "success" 
+    | Success -> "success"
     | Failed rc -> Format.sprintf "failed %i" rc
 
-  let string_of_res (res : Models.Res.t) =
-    match res with
-    | Sat -> "sat"
-    | Unsat -> "unsat"
-    | Unknown -> "unknown"
-    | Error -> "error"
-
+  let string_of_res (res : Models.Res.t) = Models.Res.to_string res
   let string_of_int = Format.sprintf "%i"
   let string_of_float = Format.sprintf "%f"
 
@@ -71,9 +65,9 @@ end = struct
     match res with
     | Sat -> "text-success"
     | Unsat -> "text-primary"
-    | Unknown -> "text-orange"
-    | Error -> "text-danger"
-  
+    | Unknown | Timeout -> "text-orange"
+    | Error | Unexpected _ -> "text-danger"
+
   (* TODO: move this function in Models module. *)
   let pp_prover fmt (prover : Models.Prover.t) =
     if String.length prover.version > 0 then
