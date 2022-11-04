@@ -206,9 +206,13 @@ let handle_rounds_diff request =
   Helper.view_or_error_to_response request =<<
   let*? db_file1 = get_db_file "uuid1"
   and*? db_file2 = get_db_file "uuid2" in
+  let*? total =
+    Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 
+      (Problem_diff.count ()))
+  in 
   Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 
     (Problem_diff.select ~offset))
-  >|? Views.render_rounds_diff request
+  >|? Views.render_rounds_diff request ~offset ~total
 
 (* TODO: Clean up *)
 let handle_round_action_dispatcher request =

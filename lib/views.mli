@@ -20,5 +20,7 @@ val render_problem_trace :
 
 val render_rounds_diff : 
   Dream.request -> 
+  offset:int ->
+  total:int ->
   Models.Problem_diff.t list -> 
   string
