@@ -118,25 +118,26 @@ let pp_bp_config ~binary fmt () =
     ("alt-ergo", version)
   in
   Format.fprintf fmt "\
-  @[<v 1>(prover@ \
-    @[<v 1>(name ae-read-status)@ \
-      @[<v 1>(cmd \"rg :status $file\")@ \
-        @[<v 1>(unknown \":status unknown\")@ \
-          @[<v 1>(unknown \"\")@ \
-            @[<v 1>(sat \":status sat\")@ \
-              @[<v 1>(unsat \":status unsat|:status valid\"))@]@]@]@]@]@]@]@]\n\
-  @[<v 1>(dir@ \
-    @[<v 1>(path \"%s\")@ \
-      @[<v 1>(pattern \".*.ae|.*.smt2\")@ \
-        @[<v 1>(expect (run ae-read-status)))@]@]@]@]@\n\
-  @[<v 1>(prover@ \
-    @[<v 1>(name %s)@ \
-      @[<v 1>(version %s)@ \
-        @[<v 1>(cmd \"%s --timelimit=$timeout $file\")@ \
-          @[<v 1>(sat \"^sat\")@ \
-            @[<v 1>(unsat \"Valid|(^unsat)\")@ \
-              @[<v 1>(unknown \"(I Don't Know)|(^unsat)\")@ \
-                @[<v 1>(timeout \"^timeout\"))@]@]@]@]@]@]@]@]@]\n"
+  (import-prelude false)@\n\
+  @[<v 2>(prover@ \
+    @[<v 2>(name ae-read-status)@ \
+      @[<v 2>(cmd \"rg :status $file\")@ \
+        @[<v 2>(unknown \":status unknown\")@ \
+          @[<v 2>(unknown \"\")@ \
+            @[<v 2>(sat \":status sat\")@ \
+              @[<v 2>(unsat \":status unsat|:status valid\"))@]@]@]@]@]@]@]@]@\n\
+  @[<v 2>(dir@ \
+    @[<v 2>(path \"%s\")@ \
+      @[<v 2>(pattern \".*.ae|.*.smt2\")@ \
+        @[<v 2>(expect (run ae-read-status)))@]@]@]@]@\n\
+  @[<v 2>(prover@ \
+    @[<v 2>(name %s)@ \
+      @[<v 2>(version %s)@ \
+        @[<v 2>(cmd \"%s --timelimit=$timeout $file\")@ \
+          @[<v 2>(sat \"^sat\")@ \
+            @[<v 2>(unsat \"Valid|(^unsat)\")@ \
+              @[<v 2>(unknown \"(I Don't Know)|(^unsat)\")@ \
+                @[<v 2>(timeout \"^timeout\"))@]@]@]@]@]@]@]@]@]@."
   Options.tests_dir
   name
   version
