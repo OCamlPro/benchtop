@@ -297,7 +297,8 @@ module Problem_diff = struct
           (p1.res <> p2.res OR \
           p1.file_expect <> p2.file_expect OR \
           p1.errcode <> p2.errcode OR \
-          ROUND(p1.rtime-p2.rtime, 1) <> 0)\
+          (ROUND(p1.rtime-p2.rtime, 0) <> 0 AND \
+          NOT (p1.res = 'timeout' AND p2.res = 'timeout')))\
       "]
 
   let select =
@@ -329,7 +330,8 @@ module Problem_diff = struct
           (p1_res.res <> p2_res.res OR \
           p1_res.file_expect <> p2_res.file_expect OR \
           p1_res.errcode <> p2_res.errcode OR \
-          ROUND(p1_res.rtime-p2_res.rtime, 1) <> 0)\
+          (ROUND(p1_res.rtime-p2_res.rtime, 0) <> 0 AND \
+          NOT (p1_res.res = 'timeout' AND p2_res.res = 'timeout')))\
         LIMIT 50 OFFSET %int{offset}\
       " function_out] (fun ~name ~prover_name_1 ~prover_name_2 
         ~prover_version_1 ~prover_version_2 ~res_1 ~res_2 
