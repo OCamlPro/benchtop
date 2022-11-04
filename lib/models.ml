@@ -20,65 +20,72 @@ let retrieve ~db_file ?db_attached req =
   | Some db_attached_path -> 
       let con = Caqti_lwt.connect db_uri in
       let* _ = con >>? attach db_attached_path in 
-      con >>? req 
+      con >>? req
 
-module Fields = struct
-  module Res = struct
-    type t = Sat | Unsat | Unknown | Error
+module Res = struct
+  type t = Sat | Unsat | Unknown | Error
 
-    let decode = function
-      | "sat" -> Ok Sat
-      | "unsat" -> Ok Unsat
-      | "unknown" -> Ok Unknown
-      | "error" -> Ok Error
-      | _ -> Error "invalid result"
+  let decode = function
+    | "sat" -> Ok Sat
+    | "unsat" -> Ok Unsat
+    | "unknown" -> Ok Unknown
+    | "error" -> Ok Error
+    | _ -> Error "invalid result"
 
-    let of_string res = Result.to_option (decode res)
+  let of_string res = Result.to_option (decode res)
+  let to_string = function
+    | Sat -> "sat"
+    | Unsat -> "unsat"
+    | Unknown -> "unknown"
+    | Error -> "error"
 
-    let t =
-      let encode = function
-        | Sat -> Ok "sat"
-        | Unsat -> Ok "unsat"
-        | Unknown -> Ok "unknown"
-        | Error -> Ok "error"
-      in
-      Caqti_type.(custom ~encode ~decode string)
-  end
+  let pp fmt res = Format.fprintf fmt "%s" (to_string res)
 
-  module Errcode = struct
-    type t = Success | Failed of int
- 
-    let decode = function
-      | 0 -> Ok Success
-      | i -> Ok (Failed i)
- 
-    let of_string rc =
-      match int_of_string_opt rc with
-      | Some rc -> Result.to_option (decode rc)
-      | None -> None
+  let t =
+    let encode res = Ok (to_string res) in
+    Caqti_type.(custom ~encode ~decode string)
+end
 
-    let t =
-      let encode = function
-        | Success -> Ok 0
-        | Failed i when i <> 0 -> Ok i
-        | _ -> Error "invalid error code"
-      in
-      Caqti_type.(custom ~encode ~decode int)
-  end
+module Errcode = struct
+  type t = Success | Failed of int
 
-  module Time = struct
-    type t = Unix.tm
+  let decode = function
+    | 0 -> Ok Success
+    | i -> Ok (Failed i)
 
-    let t =
-      let encode tm =
-        let tm, _ = Unix.mktime tm in
-        Ok tm
-      in
-      let decode tm =
-        Ok (Unix.localtime tm)
-      in
-      Caqti_type.(custom ~encode ~decode float)
-  end
+  let of_string rc =
+    match int_of_string_opt rc with
+    | Some rc -> Result.to_option (decode rc)
+    | None -> None
+
+  let to_string = function
+    | Success -> "0"
+    | Failed i when i <> 0 -> string_of_int i
+    | _ -> failwith "invalid error code"
+
+  let pp fmt rc = Format.fprintf fmt "%s" (to_string rc)
+
+  let t =
+    let encode = function
+      | Success -> Ok 0
+      | Failed i when i <> 0 -> Ok i
+      | _ -> Error "invalid error code"
+    in
+    Caqti_type.(custom ~encode ~decode int)
+end
+
+module Time = struct
+  type t = Unix.tm
+
+  let t =
+    let encode tm =
+      let tm, _ = Unix.mktime tm in
+      Ok tm
+    in
+    let decode tm =
+      Ok (Unix.localtime tm)
+    in
+    Caqti_type.(custom ~encode ~decode float)
 end
 
 module Prover = struct
@@ -114,9 +121,9 @@ module Prover = struct
     |> List.map (fun filename -> {name=filename; version=""})
 end
 
-module Problem = struct
-  open Fields
+let pp_quote pp fmt = Format.fprintf fmt "'%a'" pp
 
+module Problem = struct
   type t = {
     prover: Prover.t;
     name: string;
@@ -130,24 +137,30 @@ module Problem = struct
     uuid: string
   }
 
-  let count =
-    [%rapper
-      get_one "\
+  let count ?(name="") ~res ~expected_res ~errcode ~only_diff 
+    (module Db : Caqti_lwt.CONNECTION) =
+    let open Caqti_type.Std in
+    let open Caqti_request.Infix in
+    Db.find (unit ->! int @@ 
+      Format.asprintf "\
         SELECT \
-          @int{COUNT(file)}
+          COUNT(file)
         FROM prover_res \
         WHERE \
-          (file = %string?{name} OR %string?{name} IS NULL) AND \
-          (res = %Res?{res} OR %Res?{res} IS NULL) AND \
-          (file_expect = %Res?{expected_res} OR %Res?{expected_res} \
-            IS NULL) AND \
-          (errcode = %Errcode?{errcode} OR %Errcode?{errcode} IS NULL) AND \
-          (NOT %bool{only_diff} OR (res <> file_expect))\ 
-      "]
+          (file = '%s' OR '%s' = '') AND \
+          (res IN (%a) OR '%a' = '') AND \
+          (file_expect IN (%a) OR '%a' = '') AND \
+          (errcode IN (%a) OR '%a' = '') AND \
+          (NOT %B OR (res <> file_expect))"
+        name name
+        (Misc.pp_list (pp_quote Res.pp)) res (Misc.pp_list Res.pp) res
+        (Misc.pp_list (pp_quote Res.pp)) expected_res (Misc.pp_list Res.pp) expected_res
+        (Misc.pp_list (pp_quote Errcode.pp)) errcode (Misc.pp_list Errcode.pp) errcode
+        only_diff) () 
 
   let select, select_one =
-    let function_out ~prover_name ~prover_version ~name ~res ~expected_res 
-      ~timeout ~stdout ~stderr ~errcode ~rtime ~uuid = {
+    let function_out (prover_name, (prover_version, (name, (res, (expected_res, 
+      (timeout, (stdout, (stderr, (errcode, (rtime, uuid)))))))))) = {
         prover={
           name=prover_name; 
           version=prover_version}; 
@@ -161,57 +174,72 @@ module Problem = struct
         rtime; 
         uuid}
     in
-    ([%rapper
-      get_many "\
-        SELECT \
-          prover as @string{prover_name}, \
-          prover.version as @string{prover_version}, \
-          file as @string{name}, \
-          @Res{res}, \
-          file_expect as @Res{expected_res}, \
-          prover_res.timeout as @int{timeout}, \
-          @octets{stdout}, \
-          @octets{stderr}, \
-          @Errcode{errcode}, \
-          @float{rtime}, \
-          CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
-            AS @string{uuid} \
-        FROM prover_res, prover \
-        WHERE \
-          prover.name = prover_res.prover AND \
-          (file = %string?{name} OR %string?{name} IS NULL) AND \
-          (res = %Res?{res} OR %Res?{res} IS NULL) AND \
-          (file_expect = %Res?{expected_res} OR %Res?{expected_res} \
-            IS NULL) AND \
-          (errcode = %Errcode?{errcode} OR %Errcode?{errcode} IS NULL) AND \
-          (NOT %bool{only_diff} OR (res <> file_expect)) \
-        LIMIT 50 OFFSET %int{offset} 
-      " function_out] function_out,
-    [%rapper
-      get_one "\
-        SELECT \
-          prover as @string{prover_name}, \
-          prover.version as @string{prover_version}, \
-          file as @string{name}, \
-          @Res{res}, \
-          file_expect as @Res{expected_res}, \
-          prover_res.timeout as @int{timeout}, \
-          @octets{stdout}, \
-          @octets{stderr}, \
-          @Errcode{errcode}, \
-          @float{rtime}, \
-          CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
-            AS @string{uuid} \
-        FROM prover_res, prover \
-        WHERE \
-          prover.name = prover_res.prover AND \
-          file = %string{name}\
-      " function_out] function_out)
+    let open Caqti_type.Std in
+    let open Caqti_request.Infix in
+    let output = Caqti_type.
+      (tup2 string 
+        (tup2 string 
+          (tup2 string 
+            (tup2 Res.t 
+              (tup2 Res.t 
+                (tup2 int 
+                  (tup2 octets 
+                    (tup2 octets 
+                      (tup2 Errcode.t 
+                        (tup2 float string))))))))))
+    in
+    ((fun ?(name="") ~res ~expected_res ~errcode ~only_diff ~offset
+      (module Db : Caqti_lwt.CONNECTION) -> 
+      Db.collect_list (unit ->* output @@
+      Format.asprintf "SELECT \
+        prover, \
+        prover.version, \
+        file, \
+        res, \
+        file_expect, \
+        prover_res.timeout, \
+        stdout, \
+        stderr, \
+        errcode, \
+        rtime, \
+        CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
+      FROM prover_res, prover \
+      WHERE \
+        prover.name = prover_res.prover AND \
+        (file = '%s' OR '%s' = '') AND \
+        (res IN (%a) OR '%a' = '') AND \
+        (file_expect IN (%a) OR '%a' = '') AND \
+        (errcode IN (%a) OR '%a' = '') AND \
+        (NOT %B OR (res <> file_expect)) \
+      LIMIT 50 OFFSET %i" 
+      name name
+      (Misc.pp_list (pp_quote Res.pp)) res (Misc.pp_list Res.pp) res
+      (Misc.pp_list (pp_quote Res.pp)) expected_res (Misc.pp_list Res.pp) expected_res
+      (Misc.pp_list (pp_quote Errcode.pp)) errcode (Misc.pp_list Errcode.pp) errcode
+      only_diff
+      offset) () >|? List.map function_out), 
+    (fun ?(name = "NULL") (module Db : Caqti_lwt.CONNECTION) ->
+      Db.find (unit ->! output @@
+      Format.asprintf "SELECT \
+        prover, \
+        prover.version, \
+        file, \
+        res, \
+        file_expect, \
+        prover_res.timeout, \
+        stdout, \
+        stderr, \
+        errcode, \
+        rtime, \
+        CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
+      FROM prover_res, prover \
+      WHERE \
+        prover.name = prover_res.prover AND \
+        file = '%s'"
+      name) () >|? function_out))
 end
 
 module Round_summary = struct
-  open Fields 
-
   type t = {
     uuid: string;
     running_at: Time.t;
@@ -235,8 +263,6 @@ module Round_summary = struct
 end
 
 module Problem_diff = struct
-  open Fields
-
   type t = {
     name: string;
     prover_1: string;

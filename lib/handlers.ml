@@ -5,6 +5,13 @@ let previous_page request =
   | Some url -> url
   | None -> "/"
 
+let rec map_opt f = function
+  | [] -> []
+  | hd::tl ->
+      match f hd with
+      | Some hd -> hd :: map_opt f tl
+      | None -> []
+
 module Helper : sig
   val redirect : 
     Dream.request ->
@@ -14,21 +21,6 @@ module Helper : sig
   val view_or_error_to_response :
     Dream.request ->
     (string, [< Error.t]) result -> Dream.response Lwt.t
-
-  val look_up_get_opt_param : 
-    Dream.request -> 
-    string -> 
-    string option 
-
-  val look_up_post_param : 
-    Dream.request -> 
-    string -> 
-    (string, [> Error.param]) Lwt_result.t
-
-  val look_up_param :
-    Dream.request ->
-    string ->
-    (string, [> Error.param]) Lwt_result.t
 end = struct 
   let redirect request = function
     | Ok _ ->
@@ -45,30 +37,6 @@ end = struct
         Dream.error (fun log -> log "%a" Error.pp err);
         Error.set_session request err;
         previous_page request |> Dream.redirect request
-
-  let look_up_get_opt_param request key =
-    let uri = Dream.target request |> Uri.of_string in
-    match Uri.get_query_param uri key with 
-    | Some value when value <> String.empty -> Some value
-    | _ -> None 
-
-  let look_up_post_param request key =
-    Dream.form request >|= function
-    | `Ok params -> 
-        List.assoc_opt key params 
-        |> Option.to_result ~none:(`Key_not_found key) 
-    | `Expired x -> Error (`Expired x)
-    | `Wrong_session x -> Error (`Wrong_session x)
-    | `Invalid_token x -> Error (`Invalid_token x)
-    | `Missing_token x -> Error (`Missing_token x)
-    | `Many_tokens x -> Error (`Many_tokens x)
-    | `Wrong_content_type -> Error (`Wrong_content_type)
-
-  let look_up_param request key =
-    try 
-      Lwt_result.return (Dream.param request key)
-    with Failure _ -> 
-      Lwt_result.fail (`Key_not_found key)
 end
 
 let handle_rounds_list request =
@@ -86,38 +54,38 @@ let handle_rounds_list request =
 let handle_round_detail request =
   let view = 
     let ctx = Context.get () in
-    let name = Helper.look_up_get_opt_param request "name" in
-    let res = Option.bind
-      (Helper.look_up_get_opt_param request "res") 
-      Models.Fields.Res.of_string
+    let name = Misc.look_up_get_opt_param request "name" in
+    let res =
+      Misc.look_up_get_params request "res"
+      |> map_opt Models.Res.of_string
     in
-    let expected_res = Option.bind
-      (Helper.look_up_get_opt_param request "expected_res")
-      Models.Fields.Res.of_string
+    let expected_res =
+      Misc.look_up_get_params request "expected_res"
+      |> map_opt Models.Res.of_string
     in
-    let errcode = Option.bind
-      (Helper.look_up_get_opt_param request "errcode")
-      Models.Fields.Errcode.of_string
+    let errcode =
+      Misc.look_up_get_params request "errcode"
+      |> map_opt Models.Errcode.of_string
     in
-    let only_diff = 
-      Helper.look_up_get_opt_param request "only_diff"
+    let only_diff =
+      Misc.look_up_get_opt_param request "only_diff"
       |> Option.is_some
     in
     let offset = Option.bind
-      (Helper.look_up_get_opt_param request "offset") 
+      (Misc.look_up_get_opt_param request "offset") 
       int_of_string_opt
       |> Option.value ~default:0 
     in
     let*? round = 
-      Helper.look_up_param request "uuid"
+      Misc.look_up_param request "uuid"
       >>? Rounds_queue.find_by_uuid ctx.queue
     in
     let*? summary = Round.summary round in
     let*? total = 
-      Round.count ?name ?res ?expected_res ?errcode ~only_diff round 
+      Round.count ?name ~res ~expected_res ~errcode ~only_diff round 
     in 
     let+? pbs = 
-      Round.problems ?name ?res ?expected_res ?errcode ~only_diff ~offset round
+      Round.problems ?name ~res ~expected_res ~errcode ~only_diff ~offset round
     in
     Views.render_round_detail request ~offset ~total summary pbs
   in
@@ -126,9 +94,9 @@ let handle_round_detail request =
 let handle_problem_trace request = 
   let view =
     let ctx = Context.get () in
-    let*? uuid = Helper.look_up_param request "uuid"
+    let*? uuid = Misc.look_up_param request "uuid"
     and*? name = 
-      let*? name = Helper.look_up_param request "problem" in
+      let*? name = Misc.look_up_param request "problem" in
       Lwt.return @@ Misc.from_base64url name
     in
     Rounds_queue.find_by_uuid ctx.queue uuid
@@ -186,7 +154,7 @@ let generate_bp_config ~binary =
 
 let handle_schedule_round request = 
   let ctx = Context.get () in
-  (Helper.look_up_post_param request "prover" 
+  (Misc.look_up_post_param request "prover" 
   >|? fun prover ->
   let config_path = generate_bp_config ~binary:prover in
   let new_round = Round.make ~cmd:
@@ -225,12 +193,12 @@ end
 let handle_rounds_diff request = 
   let ctx = Context.get () in
   let offset = Option.bind
-    (Helper.look_up_get_opt_param request "offset") 
+    (Misc.look_up_get_opt_param request "offset") 
     int_of_string_opt
     |> Option.value ~default:0
   in
   let get_db_file uuid =
-    Helper.look_up_param request uuid
+    Misc.look_up_param request uuid
     >>? Rounds_queue.find_by_uuid ctx.queue
     >>? Round.db_file
   in

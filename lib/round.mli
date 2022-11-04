@@ -43,16 +43,16 @@ val problem:
 val problems :
   ?only_diff: bool ->
   ?name: string ->
-  ?res: Models.Fields.Res.t ->
-  ?expected_res: Models.Fields.Res.t ->
-  ?errcode: Models.Fields.Errcode.t ->
+  res: Models.Res.t list ->
+  expected_res: Models.Res.t list ->
+  errcode: Models.Errcode.t list ->
   offset: int ->
   t -> (Models.Problem.t list, [> Error.round]) Lwt_result.t
 
 val count :
   ?only_diff: bool ->
   ?name: string ->
-  ?res: Models.Fields.Res.t ->
-  ?expected_res: Models.Fields.Res.t ->
-  ?errcode: Models.Fields.Errcode.t ->
+  res: Models.Res.t list ->
+  expected_res: Models.Res.t list ->
+  errcode: Models.Errcode.t list ->
   t -> (int, [> Error.round]) Lwt_result.t

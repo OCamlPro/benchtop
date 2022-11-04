@@ -7,13 +7,12 @@ module Helper : sig
  
   val string_of_int : int -> string
   val string_of_float : float -> string
-  val string_of_errcode : Models.Fields.Errcode.t -> string
-  val string_of_res : Models.Fields.Res.t -> string
+  val string_of_errcode : Models.Errcode.t -> string
+  val string_of_res : Models.Res.t -> string
 
-  val color_of_res : Models.Fields.Res.t -> string
+  val color_of_res : Models.Res.t -> string
 
   val pp_prover : Models.Prover.t Fmt.t
-  val look_up_param : string -> Dream.request -> string
 
   val display_error : Dream.request -> [> Html_types.div] Tyxml.Html.elt list
 end = struct
@@ -41,10 +40,6 @@ end = struct
         "]]
       | None -> []
 
-  let look_up_param param request =
-    let uri = Dream.target request |> Uri.of_string in
-    Option.value ~default:"" (Uri.get_query_param uri param)
-  
   let html_to_string html =
     Format.asprintf "%a@." (Html.pp ~indent:true ()) html
 
@@ -57,12 +52,12 @@ end = struct
     let token = Dream.csrf_token request in
     [%html "<input name='dream.csrf' type='hidden' value='" token "'/>"]
 
-  let string_of_errcode (errcode : Models.Fields.Errcode.t) =
+  let string_of_errcode (errcode : Models.Errcode.t) =
     match errcode with
     | Success -> "success" 
     | Failed rc -> Format.sprintf "failed %i" rc
 
-  let string_of_res (res : Models.Fields.Res.t) =
+  let string_of_res (res : Models.Res.t) =
     match res with
     | Sat -> "sat"
     | Unsat -> "unsat"
@@ -72,7 +67,7 @@ end = struct
   let string_of_int = Format.sprintf "%i"
   let string_of_float = Format.sprintf "%f"
 
-  let color_of_res (res : Models.Fields.Res.t) =
+  let color_of_res (res : Models.Res.t) =
     match res with
     | Sat -> "text-success"
     | Unsat -> "text-primary"
@@ -134,10 +129,19 @@ let page_layout request ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
         <meta name='viewport' content='with=device-width,init-scale=1'/>\
         <link integrity='"bs_css_hash"' crossorigin='anonymous' \
           rel='stylesheet' href='"bs_css_url"'/>\
+        <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.14.0-beta2/css/bootstrap-select.min.css'\ 
+          integrity='sha512-mR/b5Y7FRsKqrYZou7uysnOdCIJib/7r5QeJMFvLNHNhtye3xJp1TdJVPLtetkukFn227nKpXD9OjUc09lx97Q==' \
+          crossorigin='anonymous'/>\
         <script src='"bs_script_url"' integrity='"bs_script_hash"' \
           crossorigin='anonymous'></script>\
-        <title>" (Html.txt str) "</title>\
         <script src='scripts/modal.js'></script>\
+        <script src='https://code.jquery.com/jquery-3.6.0.min.js' \
+          integrity='sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=' \ 
+          crossorigin='anonymous'></script>
+        <script src='https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.14.0-beta2/js/bootstrap-select.min.js' \
+        integrity='sha512-FHZVRMUW9FsXobt+ONiix6Z0tIkxvQfxtCSirkKc5Sb4TKHmqq1dZa8DphF0XqKb3ldLu/wgMa8mT6uXiLlRlw==' \
+          crossorigin='anonymous'></script>
+        <title>" (Html.txt str) "</title>\
      </head>\
       <body>\
         " (Helper.display_error request) "\
@@ -217,7 +221,6 @@ let pagination ~current_uri ~limit ~offset ~total =
       </ul>\
     </nav>\
   "]
-  
 
 (* BUG: placeholder option does not work properly. *)
 module Selector = struct
@@ -226,20 +229,20 @@ module Selector = struct
     | Placeholder of string
     | None
 
-  let make ~id ~label ?(default_option=None) options request = 
-    let current = Helper.look_up_param id request in
-    let options = List.map (fun (key1, value) ->
-      let attributes = match current with
-      | key2 when String.equal key1 key2 ->
+  let make ~id ~label ?(default_option=None) ?(multiple=false) options request = 
+    let currents = Misc.look_up_get_params request id in
+    let options = List.map (fun (key, value) ->
+      let attributes = 
+        if List.mem key currents then
           Html.[a_value value; a_selected ()]
-      | _ ->
+        else
           Html.[a_value value]
       in
-      Html.(option ~a:attributes (txt key1))
+      Html.(option ~a:attributes (txt key))
     ) options in
     let options =
-      let selected_default = match current with
-      | "" -> [Html.a_selected ()]
+      let selected_default = match currents with
+      | [] -> [Html.a_selected ()]
       | _ -> []
       in
       match default_option with
@@ -252,14 +255,19 @@ module Selector = struct
             (txt key)) :: options
       | None -> options
     in
+    let select_attributes =
+      let open Html in
+      if multiple then
+        [a_class ["form-control"; "mr-sm-2"; "selectpicker"]; a_id id; a_name id; a_multiple ()]
+      else
+        [a_class ["form-control"; "mr-sm-2"]; a_id id; a_name id]
+    in
     [%html "\
       <div class='input-group'>\
         <label class='input-group-text' for='"id"'>\
           " [Html.txt label] "\
         </label>\
-        <select class='form-control mr-sm-2' id='"id"' name='"id"'>\
-          " options "\
-        </select>\
+        " [Html.select ~a:select_attributes options] "\
       </div>\
     "]
 end
@@ -509,7 +517,10 @@ end = struct
     action_form ~actions:[("snapshot", "Snapshot")]
  
   let filter_form request =
-    let checked = Helper.look_up_param "only_diff" request <> "" in
+    let checked = 
+      Misc.look_up_get_opt_param request "only_diff" 
+      |> Option.is_some
+    in
     [%html "\
     <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
       method='get'>\
@@ -528,24 +539,23 @@ end = struct
           </div>\
       </div>\
       <div class='p-2'>\
-      " [Selector.make ~id:"errcode" ~label:"Error code" 
-          ~default_option:(Default_value {key="any"; value=""}) [
-          ("0", "0"); ("<> 0", "<> 0"); ("1", "1"); ("123", "123")
-          ] request] "\
+      " [Selector.make ~multiple:true ~id:"errcode" ~label:"Error code"
+          ~default_option:(Placeholder "")
+          [("0", "0"); ("1", "1"); ("123", "123")] request]
+      "\
      </div>\
      <div class='p-2'>\
-      " [Selector.make ~id:"res" ~label:"Result"
-          ~default_option:(Default_value {key="any"; value=""}) [
-          ("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
-          ("error", "error")
-          ] request] "\
+      " [Selector.make ~multiple:true ~id:"res" ~label:"Result"
+          ~default_option:(Placeholder "") 
+          [("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
+            ("error", "error")] request]
+      "\
      </div>\
      <div class='p-2'>\
-      " [Selector.make ~id:"expected_res" ~label:"Expected"
-          ~default_option:(Default_value {key="any"; value=""}) [
-          ("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
-          ("error", "error")
-          ] request] "\
+      " [Selector.make ~multiple:true ~id:"expected_res" ~label:"Expected"
+          ~default_option:(Placeholder "")
+          [("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
+            ("error", "error")] request] "\
      </div>\
      <div class='p-2'>\
         <button class='btn btn-outline-success w-100' type='submit'>\

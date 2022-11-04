@@ -180,20 +180,20 @@ let problem ~name = function
   | Pending _ | Running _ ->
       Lwt_result.fail `Not_done
 
-let problems ?(only_diff=false) ?name ?res ?expected_res ?errcode ~offset =
+let problems ?(only_diff=false) ?name ~res ~expected_res ~errcode ~offset =
   function
     | Done {db_file; _} ->
         Models.retrieve ~db_file
-        (Models.Problem.select ~name ~res ~expected_res
+        (Models.Problem.select ?name ~res ~expected_res
           ~errcode ~only_diff ~offset)
     | Pending _ | Running _ -> 
         Lwt_result.fail `Not_done
 
-let count ?(only_diff=false) ?name ?res ?expected_res ?errcode =
+let count ?(only_diff=false) ?name ~res ~expected_res ~errcode =
   function
     | Done {db_file; _} ->
         Models.retrieve ~db_file
-        (Models.Problem.count ~name ~res ~expected_res
+        (Models.Problem.count ?name ~res ~expected_res
           ~errcode ~only_diff)
     | Pending _ | Running _ -> 
         Lwt_result.fail `Not_done

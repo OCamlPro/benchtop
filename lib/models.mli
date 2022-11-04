@@ -6,25 +6,23 @@ val retrieve :
   ('a, [> Caqti_error.t] as 'b) request ->
   ('a, 'b) Lwt_result.t
 
-module Fields : sig 
-  module Res : sig 
-    type t = private Sat | Unsat | Unknown | Error
+module Res : sig 
+  type t = private Sat | Unsat | Unknown | Error
 
-    val of_string : string -> t option
-    include Rapper.CUSTOM with type t := t
-  end
+  val of_string : string -> t option
+  include Rapper.CUSTOM with type t := t
+end
 
-  module Errcode : sig
-    type t = private Success | Failed of int 
+module Errcode : sig
+  type t = private Success | Failed of int 
 
-    val of_string : string -> t option
-    include Rapper.CUSTOM with type t := t
-  end
+  val of_string : string -> t option
+  include Rapper.CUSTOM with type t := t
+end
 
-  module Time : sig
-    type t = Unix.tm
-    include Rapper.CUSTOM with type t := t
-  end
+module Time : sig
+  type t = Unix.tm
+  include Rapper.CUSTOM with type t := t
 end
 
 module Prover : sig
@@ -49,8 +47,6 @@ module Prover : sig
 end
 
 module Problem : sig
-  open Fields
-
   type t = private {
     prover: Prover.t;
     name: string;
@@ -65,30 +61,28 @@ module Problem : sig
   }
 
   val count :
-    name:string option ->
-    res:Res.t option ->
-    expected_res:Res.t option ->
-    errcode:Errcode.t option ->
+    ?name:string ->
+    res:Res.t list ->
+    expected_res:Res.t list ->
+    errcode:Errcode.t list ->
     only_diff:bool -> 
     (int, [> Error.sql]) request
  
   val select :
-    name:string option ->
-    res:Res.t option ->
-    expected_res:Res.t option ->
-    errcode:Errcode.t option ->
+    ?name:string ->
+    res:Res.t list ->
+    expected_res:Res.t list ->
+    errcode:Errcode.t list ->
     only_diff:bool ->
     offset:int ->
     (t list, [> Error.sql]) request
 
   val select_one :
-    name:string ->
+    ?name:string ->
     (t, [> Error.sql]) request
 end
 
 module Round_summary : sig
-  open Fields
-
   type t = private {
     uuid: string;
     running_at: Time.t;
@@ -100,8 +94,6 @@ module Round_summary : sig
 end
 
 module Problem_diff : sig
-  open Fields
-
   type t = {
     name: string;
     prover_1: string;
