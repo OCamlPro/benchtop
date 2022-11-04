@@ -30,6 +30,7 @@ type param = [
 
 type misc = [
   | `Cannot_convert_to_base64
+  | `Unknown_error of string
 ]
 
 type t = [

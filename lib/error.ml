@@ -30,6 +30,7 @@ type param = [
 
 type misc = [
   | `Cannot_convert_to_base64
+  | `Unknown_error of string
 ]
 
 type t = [
@@ -71,7 +72,8 @@ let pp_param fmt = function
 
 let pp_misc fmt = function
   | `Cannot_convert_to_base64 -> 
-      Format.fprintf fmt "Cannot convert the string to base64"
+    Format.fprintf fmt "Cannot convert the string to base64"
+  | `Unknown_error err -> Format.fprintf fmt "Unknown error: %s" err
 
 let pp fmt = function
   | #Caqti_error.t as err -> Caqti_error.pp fmt err
@@ -91,5 +93,15 @@ let get_session request =
   | None -> None
 
 let set_session request err =
+  let err =
+    match err with
+    | #sql as err ->
+      (* Some Caqti errors are functional and cannot be 
+         marshaled.
+         TODO: preserve Caqti_error.t s that can be marshaled
+         and translate the others. *)
+      `Unknown_error (Caqti_error.show err)
+    | (#round | #param | #misc) as err -> err
+  in
   Marshal.to_string (Some err) []
   |> Dream.add_flash_message request "error" 
