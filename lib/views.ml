@@ -170,7 +170,8 @@ let check_selector ~number value =
 
 let pagination ~current_uri ~limit ~offset ~total =
   let number_of_pages = total / limit in
-  let uri_of_offset offset = 
+  let current_uri = Uri.remove_query_param current_uri "offset" in
+  let uri_of_offset offset =
     Uri.add_query_param' current_uri ("offset", string_of_int offset)
     |> Uri.to_string
   in
