@@ -4,6 +4,10 @@ let pp_list pp fmt lst =
   let pp_sep fmt () = Format.fprintf fmt ",@," in 
   Format.pp_print_list ~pp_sep pp fmt lst
 
+let pp_to_string pp el =
+  pp (Format.str_formatter) el;
+  Format.flush_str_formatter ()
+
 let pp_error_code fmt =
   let open Unix in
   function

@@ -274,8 +274,8 @@ end
 module Problem_diff = struct
   type t = {
     name: string;
-    prover_1: string;
-    prover_2: string;
+    prover_1: Prover.t;
+    prover_2: Prover.t;
     res_1: Res.t;
     res_2: Res.t;
     expected_res_1: Res.t;
@@ -292,26 +292,60 @@ module Problem_diff = struct
         SELECT \
           @int{COUNT(p1.file)}
         FROM main.prover_res as p1, other.prover_res as p2 \
-        WHERE p1.file = p2.file\
+        WHERE \ 
+          p1.file = p2.file AND \
+          (p1.res <> p2.res OR \
+          p1.file_expect <> p2.file_expect OR \
+          p1.errcode <> p2.errcode OR \
+          ROUND(p1.rtime-p2.rtime, 1) <> 0)\
       "]
 
   let select =
     [%rapper
       get_many "\
         SELECT \
-          p1.file as @string{name}, \
-          p1.prover as @string{prover_1}, \
-          p2.prover as @string{prover_2}, \
-          p1.res as @Res{res_1}, \
-          p2.res as @Res{res_2}, \
-          p1.file_expect as @Res{expected_res_1}, \
-          p2.file_expect as @Res{expected_res_2}, \
-          p1.errcode as @Errcode{errcode_1}, \
-          p2.errcode as @Errcode{errcode_2}, \
-          p1.rtime as @float{rtime_1}, \
-          p2.rtime as @float{rtime_2} \
-        FROM main.prover_res as p1, other.prover_res as p2 \
-        WHERE p1.file = p2.file \
+          p1_res.file as @string{name}, \
+          p1_res.prover as @string{prover_name_1}, \
+          p2_res.prover as @string{prover_name_2}, \
+          p1.version as @string{prover_version_1}, \
+          p2.version as @string{prover_version_2}, \
+          p1_res.res as @Res{res_1}, \
+          p2_res.res as @Res{res_2}, \
+          p1_res.file_expect as @Res{expected_res_1}, \
+          p2_res.file_expect as @Res{expected_res_2}, \
+          p1_res.errcode as @Errcode{errcode_1}, \
+          p2_res.errcode as @Errcode{errcode_2}, \
+          p1_res.rtime as @float{rtime_1}, \
+          p2_res.rtime as @float{rtime_2} \
+        FROM \
+          main.prover_res as p1_res, \
+          main.prover as p1, \
+          other.prover_res as p2_res, \
+          other.prover as p2 \
+        WHERE \
+          p1_res.file = p2_res.file AND \
+          p1.name = p1_res.prover AND \
+          p2.name = p2_res.prover AND \
+          (p1_res.res <> p2_res.res OR \
+          p1_res.file_expect <> p2_res.file_expect OR \
+          p1_res.errcode <> p2_res.errcode OR \
+          ROUND(p1_res.rtime-p2_res.rtime, 1) <> 0)\
         LIMIT 50 OFFSET %int{offset}\
-      " record_out]
+      " function_out] (fun ~name ~prover_name_1 ~prover_name_2 
+        ~prover_version_1 ~prover_version_2 ~res_1 ~res_2 
+        ~expected_res_1 ~expected_res_2 ~errcode_1 ~errcode_2 
+        ~rtime_1 ~rtime_2 -> {
+          name;
+          prover_1 = {name=prover_name_1; version=prover_version_1};
+          prover_2 = {name=prover_name_2; version=prover_version_2};
+          res_1;
+          res_2;
+          expected_res_1;
+          expected_res_2;
+          errcode_1;
+          errcode_2;
+          rtime_1;
+          rtime_2
+        }
+      )
 end

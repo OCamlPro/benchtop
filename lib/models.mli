@@ -103,8 +103,8 @@ end
 module Problem_diff : sig
   type t = {
     name: string;
-    prover_1: string;
-    prover_2: string;
+    prover_1: Prover.t;
+    prover_2: Prover.t;
     res_1: Res.t;
     res_2: Res.t;
     expected_res_1: Res.t;

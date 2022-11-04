@@ -634,6 +634,7 @@ let render_problem_trace request (pb : Models.Problem.t) =
 module Problem_diffs_list : sig
   val table : Models.Problem_diff.t list -> Dream.request ->
     [> Html_types.tablex] Tyxml.Html.elt
+  val filter_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
 end = struct 
   let row ~number pb_diff _request =
     let open Models.Problem_diff in
@@ -647,7 +648,7 @@ end = struct
           <a href='"pb_link"'>" [Html.txt pb_diff.name] "</a>\
         </td>\
         <td>\
-          " [Html.txt pb_diff.prover_1] "\
+          " [Html.txt (Misc.pp_to_string Helper.pp_prover pb_diff.prover_1)] "\
         </td>\
         <td>\
           " [Html.txt (Helper.string_of_errcode pb_diff.errcode_1)] "\
@@ -662,7 +663,7 @@ end = struct
           " [Html.txt (Helper.string_of_res pb_diff.expected_res_1)] "\
         </td>\
         <td>\
-          " [Html.txt pb_diff.prover_2] "\
+          " [Html.txt (Misc.pp_to_string Helper.pp_prover pb_diff.prover_2)] "\
         </td>\
         <td>\
           " [Html.txt (Helper.string_of_errcode pb_diff.errcode_2)] "\
@@ -712,14 +713,38 @@ end = struct
         </tbody>\
       </table>\
     "]
+
+  let filter_form _request =
+    [%html "\
+    <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
+      method='get'>\
+      <div class='p-2'>\
+          <div class='input-group'>\
+            <label class='input-group-text' for='name'>Problem</label>\
+            <input type='text' class='form-control' id='name' name='name' \
+              placeholder='...'/>\
+          </div>\
+      </div>\
+     <div class='p-2'>\
+        <button class='btn btn-outline-success w-100' type='submit'>\
+          Filter\
+        </button>\
+      </div>\
+   </form>\
+    "]
 end
 
-let render_rounds_diff request pbs_diff =
+let render_rounds_diff request ~offset ~total pbs_diff =
   let open Problem_diffs_list in
-  let navbar = header_navbar [] in
+  let current_uri = Dream.target request |> Uri.of_string in
+  let (header_navbar, footer_navbar) = (
+      header_navbar [filter_form request]
+    , footer_navbar [pagination ~current_uri ~limit:50 ~offset ~total])
+  in
   page_layout 
     request
     ~subtitle:"Difference"
-    ~hcontent:[navbar] 
+    ~hcontent:[header_navbar]
+    ~fcontent:[footer_navbar]
     [table pbs_diff request]
   |> Helper.html_to_string
