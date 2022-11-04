@@ -17,20 +17,27 @@ let retrieve ~db_file ?db_attached req =
   in
   match db_attached_path with
   | None -> Caqti_lwt.connect db_uri >>? req
-  | Some db_attached_path -> 
+  | Some db_attached_path ->
       let con = Caqti_lwt.connect db_uri in
-      let* _ = con >>? attach db_attached_path in 
+      let* _ = con >>? attach db_attached_path in
       con >>? req
 
 module Res = struct
-  type t = Sat | Unsat | Unknown | Error
+  type t =
+    | Sat
+    | Unsat
+    | Unknown
+    | Error
+    | Timeout
+    | Unexpected of string
 
   let decode = function
     | "sat" -> Ok Sat
     | "unsat" -> Ok Unsat
     | "unknown" -> Ok Unknown
     | "error" -> Ok Error
-    | _ -> Error "invalid result"
+    | "timeout" -> Ok Timeout
+    | str -> Ok (Unexpected str)
 
   let of_string res = Result.to_option (decode res)
   let to_string = function
@@ -38,6 +45,8 @@ module Res = struct
     | Unsat -> "unsat"
     | Unknown -> "unknown"
     | Error -> "error"
+    | Timeout -> "timeout"
+    | Unexpected s -> s
 
   let pp fmt res = Format.fprintf fmt "%s" (to_string res)
 
@@ -69,7 +78,7 @@ module Errcode = struct
     let encode = function
       | Success -> Ok 0
       | Failed i when i <> 0 -> Ok i
-      | _ -> Error "invalid error code"
+      | Failed _ -> Error "invalid error code"
     in
     Caqti_type.(custom ~encode ~decode int)
 end
