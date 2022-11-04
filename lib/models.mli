@@ -7,9 +7,16 @@ val retrieve :
   ('a, 'b) Lwt_result.t
 
 module Res : sig 
-  type t = private Sat | Unsat | Unknown | Error
+  type t = private
+    | Sat
+    | Unsat
+    | Unknown
+    | Error
+    | Timeout
+    | Unexpected of string
 
   val of_string : string -> t option
+  val to_string : t -> string
   include Rapper.CUSTOM with type t := t
 end
 
