@@ -377,10 +377,8 @@ end = struct
         Html.(a ~a:[a_href url] [txt "Done"])
  
   let format_provers (round : Round.t) =
-    match round with
-    | Pending _ | Running _ -> Html.txt ""
-    | Done {provers; _} ->
-      Html.txt (Misc.sprintf_list Helper.pp_prover provers)
+    let provers = Round.provers round in
+    Html.txt (Misc.sprintf_list Helper.pp_prover provers)
 
   let format_date (round : Round.t) =
     let date =

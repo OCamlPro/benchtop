@@ -56,12 +56,14 @@ end
 type t =
   | Pending of {
     pending_since: Unix.tm;
-    cmd: Lwt_process.command
+    cmd: Lwt_process.command;
+    provers: Models.Prover.t list
   }
   | Running of {
     running_since: Unix.tm;
     watcher: Lwt_inotify.t;
     proc: Process.t;
+    provers: Models.Prover.t list
   }
   | Done of {
     done_since: Unix.tm;
@@ -70,7 +72,7 @@ type t =
     provers: Models.Prover.t list
   }
 
-let make ~cmd = Pending {pending_since = Misc.now(); cmd}
+let make ~cmd ~provers = Pending {pending_since = Misc.now(); cmd; provers}
 
 let retrieve_info db_file =
   let+? summary =
@@ -90,7 +92,7 @@ let retrieve_info db_file =
 let resurect db_file = retrieve_info db_file
 
 let run = function
-  | Pending {cmd; _} -> begin
+  | Pending {cmd; provers; _} -> begin
       let name = fst cmd in
       Dream.info (fun log -> log "Ready to run %s" name);
       let proc = Process.run ~cmd in
@@ -103,7 +105,8 @@ let run = function
       Ok (Running {
         running_since = Misc.now ();
         watcher;
-        proc
+        proc;
+        provers
       })
     end
   | Running _ | Done _ -> Lwt_result.fail `Is_running
@@ -148,6 +151,9 @@ let is_done = function
 let db_file = function
   | Done {db_file; _} -> Lwt_result.return db_file
   | Pending _ | Running _ -> Lwt_result.fail `Not_done
+
+let provers = function
+  | Pending {provers; _} | Running {provers; _} | Done {provers; _} -> provers
 
 let summary = function
   | Done {summary; _} -> Lwt_result.return summary

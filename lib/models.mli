@@ -51,6 +51,8 @@ module Prover : sig
   val readdir :
     dir: string ->
     t list
+
+  val of_binary_name : string -> t
 end
 
 module Problem : sig
