@@ -1,0 +1,4 @@
+(executable
+ (public_name genprover)
+ (name genprover)
+ (libraries cmdliner fpath))

@@ -162,40 +162,40 @@ let check_selector ~number value =
       id='"id"' name='"id"' value='"value"'/>\
   "]
 
-let pagination ~current_uri ~limit ~offset ~total =
+let pagination ~current_uri ~limit ~page ~total =
   let number_of_pages = total / limit in
-  let current_uri = Uri.remove_query_param current_uri "offset" in
-  let uri_of_offset offset =
-    Uri.add_query_param' current_uri ("offset", string_of_int offset)
+  let current_uri = Uri.remove_query_param current_uri "page" in
+  let uri_of_page page =
+    Uri.add_query_param' current_uri ("page", string_of_int page)
     |> Uri.to_string
   in
-  let prev_or_next_link ~symbol ~offset ~is_prev =
-    let offset, disabled = 
-      if is_prev && offset > 0 then
-        (offset - 1, "")
-      else if not is_prev && offset < number_of_pages then
-        (offset + 1, "")
-      else (offset, "disabled")
+  let prev_or_next_link ~symbol ~page ~is_prev =
+    let page, disabled = 
+      if is_prev && page > 0 then
+        (page - 1, "")
+      else if not is_prev && page < number_of_pages then
+        (page + 1, "")
+      else (page, "disabled")
     in
     let aria_label = if is_prev then "previous" else "next" in
     [%html "\
       <li class='" ["page-item"; disabled] "'>\
-        <a class='page-link' href='" (uri_of_offset offset) "' \
+        <a class='page-link' href='" (uri_of_page page) "' \
           aria-label='" [aria_label] "'>\
           <span aria-hidden='true'>" [Html.txt symbol] "</span>\
         </a>\
       </li>\
     "]
   in
-  let page_link ~is_activated offset =
+  let page_link ~is_activated page =
     let params = 
       if is_activated then ["active"]
       else []
     in
     [%html "\
       <li class='" ("page-item" :: params) "'>\
-        <a class='page-link' href='" (uri_of_offset offset) "'>\
-        " [Html.txt (string_of_int offset)] "\
+        <a class='page-link' href='" (uri_of_page page) "'>\
+        " [Html.txt (string_of_int page)] "\
         </a>\
       </li>\
     "]
@@ -209,28 +209,28 @@ let pagination ~current_uri ~limit ~offset ~total =
   in
   let links =
     let lst = 
-      ref [prev_or_next_link ~symbol:"❱" ~offset ~is_prev:false]
+      ref [prev_or_next_link ~symbol:"❱" ~page ~is_prev:false]
     in
     for i = number_of_pages downto 0 do
-      let is_activated = i = offset in
-      if (((i = 1 && offset <> 0) || (i = number_of_pages-1 
-        && offset <> number_of_pages)) && not is_activated) then
+      let is_activated = i = page in
+      if (((i = 1 && page <> 0) || (i = number_of_pages-1 
+        && page <> number_of_pages)) && not is_activated) then
         lst := ellipsis :: !lst
-      else if i = 0 || abs(i - offset) < 2 || i = number_of_pages then
+      else if i = 0 || abs(i - page) < 2 || i = number_of_pages then
         lst := page_link ~is_activated i :: !lst
     done;
-    lst := prev_or_next_link ~symbol:"❰" ~offset ~is_prev:true :: !lst;
+    lst := prev_or_next_link ~symbol:"❰" ~page ~is_prev:true :: !lst;
     !lst
   in
   let info = 
-    let range_left = offset * limit + 1 in
-    let range_right =
-      let n = range_left + limit - 1 in
+    let offset = page * limit + 1 in
+    let last =
+      let n = offset + limit - 1 in
       if n < total then n else total
     in
     Format.sprintf "%i-%i of %i" 
-    range_left 
-    range_right 
+    offset
+    last
     total
   in
   [%html "\
@@ -588,14 +588,14 @@ end = struct
     "]
 end
 
-let render_round_detail request ~offset ~total 
+let render_round_detail request ~page ~total 
   (_summary : Models.Round_summary.t) pbs =
   let open Problems_list in
   let current_uri = Dream.target request |> Uri.of_string in
   let table = table pbs request in
   let (header_navbar, footer_navbar) = (
       header_navbar [filter_form request; action_form request]
-    , footer_navbar [pagination ~current_uri ~limit:50 ~offset ~total])
+    , footer_navbar [pagination ~current_uri ~limit:50 ~page ~total])
   in
   page_layout
     request
@@ -761,12 +761,12 @@ end = struct
     "]
 end
 
-let render_rounds_diff request ~offset ~total pbs_diff =
+let render_rounds_diff request ~page ~total pbs_diff =
   let open Problem_diffs_list in
   let current_uri = Dream.target request |> Uri.of_string in
   let (header_navbar, footer_navbar) = (
       header_navbar [filter_form request]
-    , footer_navbar [pagination ~current_uri ~limit:50 ~offset ~total])
+    , footer_navbar [pagination ~current_uri ~limit:50 ~page ~total])
   in
   page_layout 
     request

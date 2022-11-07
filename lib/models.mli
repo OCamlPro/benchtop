@@ -81,7 +81,7 @@ module Problem : sig
     expected_res:Res.t list ->
     errcode:Errcode.t list ->
     only_diff:bool ->
-    offset:int ->
+    page:int ->
     (t list, [> Error.sql]) request
 
   val select_one :
@@ -118,6 +118,6 @@ module Problem_diff : sig
   val count : unit -> (int, [> Error.sql]) request
 
   val select :
-    offset:int ->
+    page:int ->
     (t list, [> Error.sql]) request
 end 

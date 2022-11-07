@@ -7,7 +7,7 @@ val render_rounds_list :
 
 val render_round_detail : 
   Dream.request ->
-  offset:int ->
+  page:int ->
   total:int ->
   Models.Round_summary.t ->
   Models.Problem.t list -> 
@@ -20,7 +20,7 @@ val render_problem_trace :
 
 val render_rounds_diff : 
   Dream.request -> 
-  offset:int ->
+  page:int ->
   total:int ->
   Models.Problem_diff.t list -> 
   string

@@ -180,12 +180,12 @@ let problem ~name = function
   | Pending _ | Running _ ->
       Lwt_result.fail `Not_done
 
-let problems ?(only_diff=false) ?name ~res ~expected_res ~errcode ~offset =
+let problems ?(only_diff=false) ?name ~res ~expected_res ~errcode ~page =
   function
     | Done {db_file; _} ->
         Models.retrieve ~db_file
         (Models.Problem.select ?name ~res ~expected_res
-          ~errcode ~only_diff ~offset)
+          ~errcode ~only_diff ~page)
     | Pending _ | Running _ -> 
         Lwt_result.fail `Not_done
 

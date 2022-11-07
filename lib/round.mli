@@ -46,7 +46,7 @@ val problems :
   res: Models.Res.t list ->
   expected_res: Models.Res.t list ->
   errcode: Models.Errcode.t list ->
-  offset: int ->
+  page: int ->
   t -> (Models.Problem.t list, [> Error.round]) Lwt_result.t
 
 val count :

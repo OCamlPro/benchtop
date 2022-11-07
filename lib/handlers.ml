@@ -72,8 +72,8 @@ let handle_round_detail request =
       Misc.look_up_get_opt_param request "only_diff"
       |> Option.is_some
     in
-    let offset = Option.bind
-      (Misc.look_up_get_opt_param request "offset") 
+    let page = Option.bind
+      (Misc.look_up_get_opt_param request "page") 
       int_of_string_opt
       |> Option.value ~default:0 
     in
@@ -86,9 +86,9 @@ let handle_round_detail request =
       Round.count ?name ~res ~expected_res ~errcode ~only_diff round 
     in 
     let+? pbs = 
-      Round.problems ?name ~res ~expected_res ~errcode ~only_diff ~offset round
+      Round.problems ?name ~res ~expected_res ~errcode ~only_diff ~page round
     in
-    Views.render_round_detail request ~offset ~total summary pbs
+    Views.render_round_detail request ~page ~total summary pbs
   in
   Lwt.bind view (Helper.view_or_error_to_response request)
 
@@ -104,7 +104,7 @@ let handle_problem_trace request =
     >>? Round.problem ~name
     >|? Views.render_problem_trace request
   in
-  Lwt.bind view (Helper.view_or_error_to_response request)
+  view >>= Helper.view_or_error_to_response request
 
 let pp_bp_config ~binary fmt () =
   let binary_path = Filename.concat Options.binaries_dir binary in
@@ -194,8 +194,8 @@ end
 
 let handle_rounds_diff request = 
   let ctx = Context.get () in
-  let offset = Option.bind
-    (Misc.look_up_get_opt_param request "offset") 
+  let page = Option.bind
+    (Misc.look_up_get_opt_param request "page") 
     int_of_string_opt
     |> Option.value ~default:0
   in
@@ -212,8 +212,8 @@ let handle_rounds_diff request =
       (Problem_diff.count ()))
   in 
   Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 
-    (Problem_diff.select ~offset))
-  >|? Views.render_rounds_diff request ~offset ~total
+    (Problem_diff.select ~page))
+  >|? Views.render_rounds_diff request ~page ~total
 
 (* TODO: Clean up *)
 let handle_round_action_dispatcher request =
