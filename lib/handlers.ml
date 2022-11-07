@@ -108,16 +108,7 @@ let handle_problem_trace request =
 
 let pp_bp_config ~binary fmt () =
   let binary_path = Filename.concat Options.binaries_dir binary in
-  let name, version =
-    let regexp = Str.regexp {|alt-ergo-\([a-zA-Z0-9_\-]+\)|} in
-    let version = 
-      if Str.string_match regexp binary 0 then
-        Str.matched_group 1 binary
-      else
-        ""
-    in
-    ("alt-ergo", version)
-  in
+  let prover = Models.Prover.of_binary_name binary in
   Format.fprintf fmt "\
   (import-prelude false)@\n\
   @[<v 2>(prover@ \
@@ -140,8 +131,8 @@ let pp_bp_config ~binary fmt () =
               @[<v 2>(unknown \"(I Don't Know)|(^unsat)\")@ \
                 @[<v 2>(timeout \"^timeout\"))@]@]@]@]@]@]@]@]@]@."
   Options.tests_dir
-  name
-  version
+  prover.name
+  prover.version
   binary_path
 
 let generate_bp_config ~binary =
@@ -157,9 +148,10 @@ let generate_bp_config ~binary =
 let handle_schedule_round request = 
   let ctx = Context.get () in
   (Misc.look_up_post_param request "prover" 
-  >|? fun prover ->
-  let config_path = generate_bp_config ~binary:prover in
-  let new_round = Round.make ~cmd:
+  >|? fun binary ->
+  let provers = [Models.Prover.of_binary_name binary] in
+  let config_path = generate_bp_config ~binary in
+  let new_round = Round.make ~provers ~cmd:
     ("benchpress", [|
       "benchpress"
     ; "run"

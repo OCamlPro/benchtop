@@ -128,6 +128,15 @@ module Prover = struct
   let readdir ~dir = 
     File.readdir dir 
     |> List.map (fun filename -> {name=filename; version=""})
+
+  let of_binary_name binary = 
+    let regexp = Str.regexp {|alt-ergo-\([a-zA-Z0-9_\-]+\)|} in
+    let version = 
+      if Str.string_match regexp binary 0 then
+        Str.matched_group 1 binary
+      else ""
+    in
+    {name="alt-ergo"; version} 
 end
 
 let pp_quote pp fmt = Format.fprintf fmt "'%a'" pp
