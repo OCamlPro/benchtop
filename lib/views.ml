@@ -570,14 +570,14 @@ end = struct
       " [Selector.make ~multiple:true ~id:"res" ~label:"Result"
           ~default_option:(Placeholder "") 
           [("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
-            ("error", "error")] request]
+            ("error", "error"); ("timeout", "timeout")] request]
       "\
      </div>\
      <div class='p-2'>\
       " [Selector.make ~multiple:true ~id:"expected_res" ~label:"Expected"
           ~default_option:(Placeholder "")
           [("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
-            ("error", "error")] request] "\
+            ("error", "error"); ("timeout", "timeout")] request] "\
      </div>\
      <div class='p-2'>\
         <button class='btn btn-outline-success w-100' type='submit'>\
