@@ -187,33 +187,60 @@ let pagination ~current_uri ~limit ~offset ~total =
       </li>\
     "]
   in
-  let page_link ~offset i =
-    let is_active = if Int.equal offset i then "active" else "" in
+  let page_link ~is_activated offset =
+    let params = 
+      if is_activated then ["active"]
+      else []
+    in
     [%html "\
-      <li class='" ["page-item"; is_active] "'>\
-        <a class='page-link' href='" (uri_of_offset i) "'>\
-        " [Html.txt (string_of_int i)] "
+      <li class='" ("page-item" :: params) "'>\
+        <a class='page-link' href='" (uri_of_offset offset) "'>\
+        " [Html.txt (string_of_int offset)] "\
         </a>\
       </li>\
     "]
   in
-  let page_links offset =
-    let lst = ref [] in
+  let ellipsis = 
+    [%html "\
+      <li class='page-item disabled'>\
+        <a class='page-link'>...</a>\
+      </li>\
+    "]
+  in
+  let links =
+    let lst = 
+      ref [prev_or_next_link ~symbol:"❱" ~offset ~is_prev:false]
+    in
     for i = number_of_pages downto 0 do
-      lst := page_link ~offset i :: !lst
+      let is_activated = i = offset in
+      if (((i = 1 && offset <> 0) || (i = number_of_pages-1 
+        && offset <> number_of_pages)) && not is_activated) then
+        lst := ellipsis :: !lst
+      else if i = 0 || abs(i - offset) < 2 || i = number_of_pages then
+        lst := page_link ~is_activated i :: !lst
     done;
+    lst := prev_or_next_link ~symbol:"❰" ~offset ~is_prev:true :: !lst;
     !lst
   in
-  let links =  
-      [prev_or_next_link ~symbol:"&laquo;" ~offset ~is_prev:true] 
-    @ (page_links offset) 
-    @ [prev_or_next_link ~symbol:"&raquo;" ~offset ~is_prev:false]
+  let info = 
+    let range_left = offset * limit + 1 in
+    let range_right =
+      let n = range_left + limit - 1 in
+      if n < total then n else total
+    in
+    Format.sprintf "%i-%i of %i" 
+    range_left 
+    range_right 
+    total
   in
   [%html "\
     <nav aria-label='pagination'>\
       <ul class='pagination'>\
         " links "\
       </ul>\
+      <span>\
+      " [ Html.txt info ] "\
+      </span>\
     </nav>\
   "]
 
