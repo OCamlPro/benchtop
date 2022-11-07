@@ -206,7 +206,7 @@ module Problem = struct
                       (tup2 Errcode.t 
                         (tup2 float string))))))))))
     in
-    ((fun ?(name="") ~res ~expected_res ~errcode ~only_diff ~offset
+    ((fun ?(name="") ~res ~expected_res ~errcode ~only_diff ~page
       (module Db : Caqti_lwt.CONNECTION) -> 
       Db.collect_list (unit ->* output @@
       Format.asprintf "SELECT \
@@ -229,13 +229,13 @@ module Problem = struct
         (file_expect IN (%a) OR '%a' = '') AND \
         (errcode IN (%a) OR '%a' = '') AND \
         (NOT %B OR (res <> file_expect)) \
-      LIMIT 50 OFFSET %i" 
+      LIMIT 50 OFFSET (50*%i)" 
       name name
       (Misc.pp_list (pp_quote Res.pp)) res (Misc.pp_list Res.pp) res
       (Misc.pp_list (pp_quote Res.pp)) expected_res (Misc.pp_list Res.pp) expected_res
       (Misc.pp_list (pp_quote Errcode.pp)) errcode (Misc.pp_list Errcode.pp) errcode
       only_diff
-      offset) () >|? List.map function_out), 
+      page) () >|? List.map function_out), 
     (fun ?(name = "NULL") (module Db : Caqti_lwt.CONNECTION) ->
       Db.find (unit ->! output @@
       Format.asprintf "SELECT \
@@ -341,7 +341,7 @@ module Problem_diff = struct
           p1_res.errcode <> p2_res.errcode OR \
           (ROUND(p1_res.rtime-p2_res.rtime, 0) <> 0 AND \
           NOT (p1_res.res = 'timeout' AND p2_res.res = 'timeout')))\
-        LIMIT 50 OFFSET %int{offset}\
+        LIMIT 50 OFFSET (50 * %int{page})\
       " function_out] (fun ~name ~prover_name_1 ~prover_name_2 
         ~prover_version_1 ~prover_version_2 ~res_1 ~res_2 
         ~expected_res_1 ~expected_res_2 ~errcode_1 ~errcode_2 
