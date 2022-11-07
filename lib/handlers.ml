@@ -5,6 +5,7 @@ let previous_page request =
   | Some url -> url
   | None -> "/"
 
+(* TODO: Move this function somewhere else. *)
 let rec map_opt f = function
   | [] -> []
   | hd::tl ->
