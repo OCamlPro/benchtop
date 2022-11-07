@@ -113,7 +113,7 @@ let pp_bp_config ~binary fmt () =
   (import-prelude false)@\n\
   @[<v 2>(prover@ \
     @[<v 2>(name ae-read-status)@ \
-      @[<v 2>(cmd \"rg --search-zip :status $file\")@ \
+      @[<v 2>(cmd \"zgrep :status $file\")@ \
         @[<v 2>(unknown \":status unknown\")@ \
           @[<v 2>(unknown \"\")@ \
             @[<v 2>(sat \":status sat\")@ \
