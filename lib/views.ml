@@ -535,7 +535,15 @@ end = struct
 
   let action_form =
     action_form ~actions:[("snapshot", "Snapshot")]
- 
+
+  let possible_results = [
+    ("unsat", "unsat");
+    ("sat", "sat");
+    ("unknown", "unknown");
+    ("error", "error");
+    ("timeout", "timeout")
+  ]
+
   let filter_form request =
     let checked = 
       Misc.look_up_get_opt_param request "only_diff" 
@@ -566,16 +574,16 @@ end = struct
      </div>\
      <div class='p-2'>\
       " [Selector.make ~multiple:true ~id:"res" ~label:"Result"
-          ~default_option:(Placeholder "") 
-          [("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
-            ("error", "error")] request]
+          ~default_option:(Placeholder "")
+          possible_results
+          request]
       "\
      </div>\
      <div class='p-2'>\
       " [Selector.make ~multiple:true ~id:"expected_res" ~label:"Expected"
           ~default_option:(Placeholder "")
-          [("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
-            ("error", "error")] request] "\
+          possible_results
+          request] "\
      </div>\
      <div class='p-2'>\
         <button class='btn btn-outline-success w-100' type='submit'>\
@@ -586,7 +594,7 @@ end = struct
     "]
 end
 
-let render_round_detail request ~page ~total 
+let render_round_detail request ~page ~total
   (_summary : Models.Round_summary.t) pbs =
   let open Problems_list in
   let current_uri = Dream.target request |> Uri.of_string in
