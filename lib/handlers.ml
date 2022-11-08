@@ -145,13 +145,13 @@ let generate_bp_config ~binary =
   close_out ch;
   filename
 
-let handle_schedule_round request = 
+let handle_schedule_round request =
   let ctx = Context.get () in
   (Misc.look_up_post_param request "prover" 
   >|? fun binary ->
-  let provers = [Models.Prover.of_binary_name binary] in
+  let prover = Models.Prover.of_binary_name binary in
   let config_path = generate_bp_config ~binary in
-  let new_round = Round.make ~provers ~cmd:
+  let new_round = Round.make ~prover ~cmd:
     ("benchpress", [|
       "benchpress"
     ; "run"

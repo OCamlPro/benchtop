@@ -11,22 +11,22 @@ type t = private
   | Pending of {
     pending_since: Unix.tm;
     cmd: Lwt_process.command;
-    provers: Models.Prover.t list
+    prover: Models.Prover.t
   }
   | Running of {
     running_since: Unix.tm;
     watcher: Lwt_inotify.t;
     proc: Process.t;
-    provers: Models.Prover.t list
+    prover: Models.Prover.t
   }
   | Done of {
     done_since: Unix.tm;
     db_file: string;
     summary: Models.Round_summary.t;
-    provers: Models.Prover.t list
+    prover: Models.Prover.t
   }
 
-val make : cmd:Lwt_process.command -> provers:Models.Prover.t list -> t
+val make : cmd:Lwt_process.command -> prover:Models.Prover.t -> t
 val resurect : string -> (t, [> Error.round]) Lwt_result.t
 val run : t -> (t, [> Error.round]) Lwt_result.t
 val update : t -> (t, [> Error.round]) Lwt_result.t
@@ -34,7 +34,7 @@ val stop : t -> (t, [> Error.round]) Lwt_result.t
 val db_file : t -> (string, [> Error.round]) Lwt_result.t
 val summary : t -> (Models.Round_summary.t, [> Error.round]) Lwt_result.t
 val is_done : t -> bool
-val provers : t -> Models.Prover.t list
+val prover : t -> Models.Prover.t
 val compare : t -> t -> int
 
 val problem:

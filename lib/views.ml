@@ -376,9 +376,9 @@ end = struct
         let url = "round/" ^ summary.uuid in
         Html.(a ~a:[a_href url] [txt "Done"])
  
-  let format_provers (round : Round.t) =
-    let provers = Round.provers round in
-    Html.txt (Misc.sprintf_list Helper.pp_prover provers)
+  let format_prover (round : Round.t) =
+    let prover = Round.prover round in
+    Html.txt @@ Format.asprintf "%a" Helper.pp_prover prover
 
   let format_date (round : Round.t) =
     let date =
@@ -414,7 +414,7 @@ end = struct
       [%html "\
         <tr>\
           <th>" check_selector "</th>\
-          <td>" [format_provers round] "</td>\
+          <td>" [format_prover round] "</td>\
           <td>" [format_uuid round] "</td>\
           <td class='text-center'>" [format_result round] "</td>\
           <td class='text-center'>" [format_status round] "</td>\
