@@ -57,7 +57,6 @@ end
 
 module Problem : sig
   type t = private {
-    prover: Prover.t;
     name: string;
     res: Res.t;
     expected_res: Res.t;

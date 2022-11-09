@@ -143,7 +143,6 @@ let pp_quote pp fmt = Format.fprintf fmt "'%a'" pp
 
 module Problem = struct
   type t = {
-    prover: Prover.t;
     name: string;
     res: Res.t;
     expected_res: Res.t;
@@ -177,11 +176,8 @@ module Problem = struct
         only_diff) () 
 
   let select, select_one =
-    let function_out (prover_name, (prover_version, (name, (res, (expected_res, 
-      (timeout, (stdout, (stderr, (errcode, (rtime, uuid)))))))))) = {
-        prover={
-          name=prover_name; 
-          version=prover_version}; 
+    let function_out (name, (res, (expected_res, 
+      (timeout, (stdout, (stderr, (errcode, (rtime, uuid)))))))) = {
         name; 
         res; 
         expected_res; 
@@ -196,22 +192,18 @@ module Problem = struct
     let open Caqti_request.Infix in
     let output = Caqti_type.
       (tup2 string 
-        (tup2 string 
-          (tup2 string 
-            (tup2 Res.t 
-              (tup2 Res.t 
-                (tup2 int 
-                  (tup2 octets 
-                    (tup2 octets 
-                      (tup2 Errcode.t 
-                        (tup2 float string))))))))))
+        (tup2 Res.t 
+          (tup2 Res.t 
+            (tup2 int 
+              (tup2 octets 
+                (tup2 octets 
+                  (tup2 Errcode.t 
+                    (tup2 float string))))))))
     in
     ((fun ?(name="") ~res ~expected_res ~errcode ~only_diff ~page
       (module Db : Caqti_lwt.CONNECTION) -> 
       Db.collect_list (unit ->* output @@
       Format.asprintf "SELECT \
-        prover, \
-        prover.version, \
         file, \
         res, \
         file_expect, \
@@ -221,9 +213,8 @@ module Problem = struct
         errcode, \
         rtime, \
         CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
-      FROM prover_res, prover \
+      FROM prover_res \
       WHERE \
-        prover.name = prover_res.prover AND \
         (file = '%s' OR '%s' = '') AND \
         (res IN (%a) OR '%a' = '') AND \
         (file_expect IN (%a) OR '%a' = '') AND \
@@ -239,8 +230,6 @@ module Problem = struct
     (fun ?(name = "NULL") (module Db : Caqti_lwt.CONNECTION) ->
       Db.find (unit ->! output @@
       Format.asprintf "SELECT \
-        prover, \
-        prover.version, \
         file, \
         res, \
         file_expect, \
@@ -252,7 +241,6 @@ module Problem = struct
         CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
       FROM prover_res, prover \
       WHERE \
-        prover.name = prover_res.prover AND \
         file = '%s'"
       name) () >|? function_out))
 end

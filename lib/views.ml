@@ -467,12 +467,16 @@ let render_rounds_list request ~is_running rounds provers =
   |> Helper.html_to_string
 
 module Problems_list : sig
-  val table : Models.Problem.t list -> Dream.request ->
+  val table:
+    Dream.request ->
+    prover:Models.Prover.t ->
+    Models.Problem.t list ->
     [> Html_types.tablex] Tyxml.Html.elt
+  
   val action_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
   val filter_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
 end = struct 
-  let row ~number pb request =
+  let row request ~number ~prover pb =
     let open Models.Problem in
     let uuid = Dream.param request "uuid" in
     let pb_link = Format.sprintf 
@@ -484,7 +488,7 @@ end = struct
           " [check_selector ~number (Dream.to_base64url pb.name)] "\
         </th>\
         <td>\
-          " [Html.txt (Format.asprintf "%a" Helper.pp_prover pb.prover)] "\
+          " [Html.txt (Format.asprintf "%a" Helper.pp_prover prover)] "\
         </td>\
         <td class='text-break'>\
           <a href='"pb_link"'>" [Html.txt pb.name] "</a>\
@@ -508,9 +512,9 @@ end = struct
       </tr>\
     "]
   
-  let table pbs request =
+  let table request ~prover pbs =
     let rows =  List.mapi (fun i pb ->
-      row ~number:i pb request
+      row request ~number:i ~prover pb
     ) pbs in
     [%html "\
       <table class='table table-striped table-hover align-middle \
@@ -574,16 +578,16 @@ end = struct
      </div>\
      <div class='p-2'>\
       " [Selector.make ~multiple:true ~id:"res" ~label:"Result"
-          ~default_option:(Placeholder "")
-          possible_results
-          request]
+          ~default_option:(Placeholder "") 
+          [("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
+            ("error", "error")] request]
       "\
      </div>\
      <div class='p-2'>\
       " [Selector.make ~multiple:true ~id:"expected_res" ~label:"Expected"
           ~default_option:(Placeholder "")
-          possible_results
-          request] "\
+          [("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
+            ("error", "error")] request] "\
      </div>\
      <div class='p-2'>\
         <button class='btn btn-outline-success w-100' type='submit'>\
@@ -594,11 +598,11 @@ end = struct
     "]
 end
 
-let render_round_detail request ~page ~total
+let render_round_detail request ~page ~total ~prover
   (_summary : Models.Round_summary.t) pbs =
   let open Problems_list in
   let current_uri = Dream.target request |> Uri.of_string in
-  let table = table pbs request in
+  let table = table request ~prover pbs  in
   let (header_navbar, footer_navbar) = (
       header_navbar [filter_form request; action_form request]
     , footer_navbar [pagination ~current_uri ~limit:50 ~page ~total])
@@ -665,8 +669,13 @@ let render_problem_trace request (pb : Models.Problem.t) =
   |> Helper.html_to_string
 
 module Problem_diffs_list : sig
-  val table : Models.Problem_diff.t list -> Dream.request ->
+  val table:
+    Dream.request ->
+    prover_1:Models.Prover.t ->
+    prover_2:Models.Prover.t ->
+    Models.Problem_diff.t list ->
     [> Html_types.tablex] Tyxml.Html.elt
+  
   val filter_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
 end = struct 
   let row ~number pb_diff _request =
@@ -712,8 +721,11 @@ end = struct
         </td>\
       </tr>\
     "]
+
+  let format_prover_header prover =
+    Html.txt @@ Format.asprintf "Prover: %a" Helper.pp_prover prover
   
-  let table pb_diffs request =
+  let table request ~prover_1 ~prover_2 pb_diffs =
     let rows =  List.mapi (fun i pb_diff ->
       row ~number:i pb_diff request
     ) pb_diffs in
@@ -723,8 +735,8 @@ end = struct
         <thead>\
           <tr>\
             <th colspan='2'></th>\
-            <th colspan='5'>Round 1</th>\
-            <th colspan='5'>Round 2</th>\
+            <th colspan='5'>" [format_prover_header prover_1] "</th>\
+            <th colspan='5'>" [format_prover_header prover_2] "</th>\
           </tr>
           <tr>\
             <th>Select</th>\
@@ -767,7 +779,7 @@ end = struct
     "]
 end
 
-let render_rounds_diff request ~page ~total pbs_diff =
+let render_rounds_diff request ~page ~total ~prover_1 ~prover_2 pbs_diff =
   let open Problem_diffs_list in
   let current_uri = Dream.target request |> Uri.of_string in
   let (header_navbar, footer_navbar) = (
@@ -779,5 +791,5 @@ let render_rounds_diff request ~page ~total pbs_diff =
     ~subtitle:"Difference"
     ~hcontent:[header_navbar]
     ~fcontent:[footer_navbar]
-    [table pbs_diff request]
+    [table request ~prover_1 ~prover_2 pbs_diff]
   |> Helper.html_to_string
