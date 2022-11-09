@@ -187,9 +187,22 @@ end
 
 let handle_rounds_diff request = 
   let ctx = Context.get () in
-  let page = Option.bind
-    (Misc.look_up_get_opt_param request "page") 
-    int_of_string_opt
+  let file = 
+    Misc.look_up_get_opt_param request "file"
+    |> Option.value ~default:""
+  in
+  let kind_diff = Option.bind 
+    (Misc.look_up_get_opt_param request "kind_diff")
+    Models.Kind_diff.of_string
+    |> Option.value ~default:Models.Kind_diff.Difference
+  in
+  let show_rtime_reg = 
+    Misc.look_up_get_opt_param request "show_rtime_reg"
+    |> Option.is_some
+  in
+  let page =
+    Misc.look_up_get_opt_param request "page"
+    |> fun x -> Option.bind x int_of_string_opt
     |> Option.value ~default:0
   in
   let view =
@@ -204,10 +217,10 @@ let handle_rounds_diff request =
     let*? db_file2 = Round.db_file round2 in
     let*? total =
       Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 
-        (Problem_diff.count ()))
+        (Problem_diff.count ~file ~kind_diff ~show_rtime_reg))
     in 
     Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 
-      (Problem_diff.select ~page))
+      (Problem_diff.select ~file ~kind_diff ~show_rtime_reg ~page))
     >|? Views.render_rounds_diff request ~page ~total 
       ~prover_1:(Round.prover round1) ~prover_2:(Round.prover round2)
   in

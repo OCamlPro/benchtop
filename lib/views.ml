@@ -43,6 +43,7 @@ end = struct
   let html_to_string html =
     Format.asprintf "%a@." (Html.pp ~indent:true ()) html
 
+  (* TODO: move this function in Models module. *)
   let pp_date fmt (tm : Unix.tm) = 
     Format.fprintf fmt "%02i/%02i/%04i %02i:%02i:%02i"
       tm.tm_mday (tm.tm_mon + 1) (tm.tm_year + 1900)
@@ -213,6 +214,7 @@ let pagination ~current_uri ~limit ~page ~total =
     let lst = 
       ref [prev_or_next_link ~symbol:"❱" ~page ~is_prev:false]
     in
+    (* TODO: clean this code. *)
     for i = number_of_pages downto 0 do
       let is_activated = i = page in
       if (((i = 1 && page <> 0) || (i = number_of_pages-1 
@@ -551,19 +553,19 @@ end = struct
     [%html "\
     <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
       method='get'>\
-      <div class='form-check form-switch col-lg-1 p-2'>\
+      <div class='form-check form-switch p-2'>\
         <label class='form-check-label' for='only_diff'>\
           Diff\
         </label>\
-        " [checkbox ~checked ~cla:["form-check-input"; "float-end"] 
+        " [checkbox ~checked ~cla:["form-check-input"] 
             "only_diff"] "\
       </div>\
       <div class='p-2'>\
-          <div class='input-group'>\
-            <label class='input-group-text' for='file'>Problem</label>\
-            <input type='text' class='form-control' id='file' name='file' \
-              placeholder='...'/>\
-          </div>\
+        <div class='input-group'>\
+          <label class='input-group-text' for='file'>Problem</label>\
+          <input type='text' class='form-control' id='file' name='file' \
+            placeholder='...'/>\
+        </div>\
       </div>\
       <div class='p-2'>\
       " [Selector.make ~multiple:true ~id:"errcode" ~label:"Error code"
@@ -679,9 +681,6 @@ module Problem_diffs_list : sig
 end = struct
   let format_problem (pb : Models.Problem.t) =
     [%html "\
-      <td class='" [Helper.color_of_res pb.file_expect] "'>\
-        " [Html.txt (Helper.string_of_res pb.file_expect)] "\
-      </td>\
       <td>\
         " [Html.txt (Helper.string_of_errcode pb.errcode)] "\
       </td>\
@@ -704,6 +703,9 @@ end = struct
         <td class='text-start text-break'>\
           <a href='"pb_link"'>" [Html.txt problem1.file] "</a>\
         </td>\
+        <td class='" [Helper.color_of_res problem1.file_expect] "'>\
+          " [Html.txt (Helper.string_of_res problem1.file_expect)] "\
+        </td>\
         " ((format_problem problem1) @ (format_problem problem2)) "
       </tr>\
     "]
@@ -721,8 +723,12 @@ end = struct
         <thead>\
           <tr>\
             <th colspan='3'></th>\
-            <th colspan='4'>" [format_prover_header prover_1] "</th>\
-            <th colspan='4'>" [format_prover_header prover_2] "</th>\
+            <th colspan='3'>\
+              " [format_prover_header prover_1] "\
+            </th>\
+            <th colspan='3'>\
+              " [format_prover_header prover_2] "\
+            </th>\
           </tr>
           <tr>\
             <th>Select</th>\
@@ -734,7 +740,6 @@ end = struct
             <th>Error code</th>\
             <th>Running time</th>\
             <th>Result</th>\
-            <th>Expected</th>\
           </tr>\
         </thead>\
         <tbody class='table-group-divider'>\
@@ -743,24 +748,42 @@ end = struct
       </table>\
     "]
 
-  let filter_form _request =
+  let filter_form request =
+    let checked = 
+      Misc.look_up_get_opt_param request "show_rtime_reg" 
+      |> Option.is_some
+    in
     [%html "\
     <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
       method='get'>\
-      <div class='p-2'>\
-          <div class='input-group'>\
-            <label class='input-group-text' for='name'>Problem</label>\
-            <input type='text' class='form-control' id='name' name='name' \
-              placeholder='...'/>\
-          </div>\
+      <div class='form-check form-switch p-2'>\
+        <label class='form-check-label' for='show_rtime_reg'>\
+          Show running time regression\
+        </label>\
+        " [checkbox ~checked ~cla:["form-check-input"] 
+            "show_rtime_reg"] "\
       </div>\
-     <div class='p-2'>\
+      <div class='p-2'>\
+        " [Selector.make ~id:"kind_diff" ~label:"Kind"
+          ~default_option:(Default_value {key="difference"; value="difference"})
+          [ ("improvement", "improvement"); 
+            ("regression", "regression") ] request]
+        "\
+      </div>\
+      <div class='p-2'>\
+        <div class='input-group'>\
+          <label class='input-group-text' for='name'>Problem</label>\
+          <input type='text' class='form-control' id='file' name='file' \
+            placeholder='...'/>\
+        </div>\
+      </div>\
+      <div class='p-2'>\
         <button class='btn btn-outline-success w-100' type='submit'>\
           Filter\
         </button>\
       </div>\
    </form>\
-    "]
+   "]
 end
 
 let render_rounds_diff request ~page ~total ~prover_1 ~prover_2 pbs_diff =

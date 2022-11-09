@@ -27,8 +27,16 @@ module Errcode : sig
   include Rapper.CUSTOM with type t := t
 end
 
+(* TODO: replace this type by the built-in date in Caqti. *)
 module Time : sig
   type t = Unix.tm
+  include Rapper.CUSTOM with type t := t
+end
+
+module Kind_diff : sig
+  type t = Improvement | Regression | Difference
+  
+  val of_string : string -> t option
   include Rapper.CUSTOM with type t := t
 end
 
@@ -103,9 +111,16 @@ end
 module Problem_diff : sig
   type t = Problem.t * Problem.t
 
-  val count : unit -> (int, [> Error.sql]) request
+  val count : 
+    file:string ->
+    show_rtime_reg:bool ->
+    kind_diff:Kind_diff.t ->
+    (int, [> Error.sql]) request
 
   val select :
+    file:string ->
+    show_rtime_reg:bool ->
+    kind_diff:Kind_diff.t ->
     page:int ->
     (t list, [> Error.sql]) request
 end 
