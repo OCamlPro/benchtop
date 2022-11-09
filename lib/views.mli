@@ -9,8 +9,9 @@ val render_round_detail :
   Dream.request ->
   page:int ->
   total:int ->
+  prover:Models.Prover.t ->
   Models.Round_summary.t ->
-  Models.Problem.t list -> 
+  Models.Problem.t list ->
   string 
 
 val render_problem_trace : 
@@ -22,5 +23,7 @@ val render_rounds_diff :
   Dream.request -> 
   page:int ->
   total:int ->
+  prover_1:Models.Prover.t ->
+  prover_2:Models.Prover.t ->
   Models.Problem_diff.t list -> 
   string

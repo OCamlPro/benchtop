@@ -81,6 +81,7 @@ let handle_round_detail request =
       Misc.look_up_param request "uuid"
       >>? Rounds_queue.find_by_uuid ctx.queue
     in
+    let prover = Round.prover round in
     let*? summary = Round.summary round in
     let*? total = 
       Round.count ?name ~res ~expected_res ~errcode ~only_diff round 
@@ -88,9 +89,9 @@ let handle_round_detail request =
     let+? pbs = 
       Round.problems ?name ~res ~expected_res ~errcode ~only_diff ~page round
     in
-    Views.render_round_detail request ~page ~total summary pbs
+    Views.render_round_detail request ~page ~total ~prover summary pbs
   in
-  Lwt.bind view (Helper.view_or_error_to_response request)
+  view >>= Helper.view_or_error_to_response request
 
 let handle_problem_trace request = 
   let view =
@@ -191,21 +192,26 @@ let handle_rounds_diff request =
     int_of_string_opt
     |> Option.value ~default:0
   in
-  let get_db_file uuid =
-    Misc.look_up_param request uuid
-    >>? Rounds_queue.find_by_uuid ctx.queue
-    >>? Round.db_file
-  in
-  Helper.view_or_error_to_response request =<<
-  let*? db_file1 = get_db_file "uuid1"
-  and*? db_file2 = get_db_file "uuid2" in
-  let*? total =
+  let view =
+    let*? round1 = 
+      Misc.look_up_param request "uuid1"
+      >>? Rounds_queue.find_by_uuid ctx.queue
+    and*? round2 = 
+      Misc.look_up_param request "uuid2"
+      >>? Rounds_queue.find_by_uuid ctx.queue
+    in
+    let*? db_file1 = Round.db_file round1 in
+    let*? db_file2 = Round.db_file round2 in
+    let*? total =
+      Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 
+        (Problem_diff.count ()))
+    in 
     Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 
-      (Problem_diff.count ()))
-  in 
-  Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 
-    (Problem_diff.select ~page))
-  >|? Views.render_rounds_diff request ~page ~total
+      (Problem_diff.select ~page))
+    >|? Views.render_rounds_diff request ~page ~total 
+      ~prover_1:(Round.prover round1) ~prover_2:(Round.prover round2)
+  in
+  view >>= Helper.view_or_error_to_response request 
 
 (* TODO: Clean up *)
 let handle_round_action_dispatcher request =
