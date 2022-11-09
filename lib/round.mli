@@ -44,17 +44,17 @@ val problem:
 
 val problems :
   ?only_diff: bool ->
-  ?name: string ->
+  ?file: string ->
   res: Models.Res.t list ->
-  expected_res: Models.Res.t list ->
+  file_expect: Models.Res.t list ->
   errcode: Models.Errcode.t list ->
   page: int ->
   t -> (Models.Problem.t list, [> Error.round]) Lwt_result.t
 
 val count :
   ?only_diff: bool ->
-  ?name: string ->
+  ?file: string ->
   res: Models.Res.t list ->
-  expected_res: Models.Res.t list ->
+  file_expect: Models.Res.t list ->
   errcode: Models.Errcode.t list ->
   t -> (int, [> Error.round]) Lwt_result.t

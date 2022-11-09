@@ -55,13 +55,13 @@ let handle_rounds_list request =
 let handle_round_detail request =
   let view = 
     let ctx = Context.get () in
-    let name = Misc.look_up_get_opt_param request "name" in
+    let file = Misc.look_up_get_opt_param request "file" in
     let res =
       Misc.look_up_get_params request "res"
       |> map_opt Models.Res.of_string
     in
-    let expected_res =
-      Misc.look_up_get_params request "expected_res"
+    let file_expect =
+      Misc.look_up_get_params request "file_expect"
       |> map_opt Models.Res.of_string
     in
     let errcode =
@@ -84,10 +84,10 @@ let handle_round_detail request =
     let prover = Round.prover round in
     let*? summary = Round.summary round in
     let*? total = 
-      Round.count ?name ~res ~expected_res ~errcode ~only_diff round 
+      Round.count ?file ~res ~file_expect ~errcode ~only_diff round 
     in 
     let+? pbs = 
-      Round.problems ?name ~res ~expected_res ~errcode ~only_diff ~page round
+      Round.problems ?file ~res ~file_expect ~errcode ~only_diff ~page round
     in
     Views.render_round_detail request ~page ~total ~prover summary pbs
   in

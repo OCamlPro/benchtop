@@ -143,9 +143,9 @@ let pp_quote pp fmt = Format.fprintf fmt "'%a'" pp
 
 module Problem = struct
   type t = {
-    name: string;
+    file: string;
     res: Res.t;
-    expected_res: Res.t;
+    file_expect: Res.t;
     timeout: int;
     stdout: string;
     stderr: string;
@@ -154,7 +154,7 @@ module Problem = struct
     uuid: string
   }
 
-  let count ?(name="") ~res ~expected_res ~errcode ~only_diff 
+  let count ?(file="") ~res ~file_expect ~errcode ~only_diff 
     (module Db : Caqti_lwt.CONNECTION) =
     let open Caqti_type.Std in
     let open Caqti_request.Infix in
@@ -169,18 +169,18 @@ module Problem = struct
           (file_expect IN (%a) OR '%a' = '') AND \
           (errcode IN (%a) OR '%a' = '') AND \
           (NOT %B OR (res <> file_expect))"
-        name name
+        file file
         (Misc.pp_list (pp_quote Res.pp)) res (Misc.pp_list Res.pp) res
-        (Misc.pp_list (pp_quote Res.pp)) expected_res (Misc.pp_list Res.pp) expected_res
+        (Misc.pp_list (pp_quote Res.pp)) file_expect (Misc.pp_list Res.pp) file_expect 
         (Misc.pp_list (pp_quote Errcode.pp)) errcode (Misc.pp_list Errcode.pp) errcode
         only_diff) () 
 
   let select, select_one =
-    let function_out (name, (res, (expected_res, 
+    let function_out (file, (res, (file_expect, 
       (timeout, (stdout, (stderr, (errcode, (rtime, uuid)))))))) = {
-        name; 
+        file; 
         res; 
-        expected_res; 
+        file_expect; 
         timeout; 
         stdout; 
         stderr; 
@@ -200,7 +200,7 @@ module Problem = struct
                   (tup2 Errcode.t 
                     (tup2 float string))))))))
     in
-    ((fun ?(name="") ~res ~expected_res ~errcode ~only_diff ~page
+    ((fun ?(file="") ~res ~file_expect ~errcode ~only_diff ~page
       (module Db : Caqti_lwt.CONNECTION) -> 
       Db.collect_list (unit ->* output @@
       Format.asprintf "SELECT \
@@ -221,9 +221,9 @@ module Problem = struct
         (errcode IN (%a) OR '%a' = '') AND \
         (NOT %B OR (res <> file_expect)) \
       LIMIT 50 OFFSET (50*%i)" 
-      name name
+      file file 
       (Misc.pp_list (pp_quote Res.pp)) res (Misc.pp_list Res.pp) res
-      (Misc.pp_list (pp_quote Res.pp)) expected_res (Misc.pp_list Res.pp) expected_res
+      (Misc.pp_list (pp_quote Res.pp)) file_expect (Misc.pp_list Res.pp) file_expect 
       (Misc.pp_list (pp_quote Errcode.pp)) errcode (Misc.pp_list Errcode.pp) errcode
       only_diff
       page) () >|? List.map function_out), 
