@@ -689,8 +689,8 @@ end = struct
         <td class='text-start text-break'>\
           <a href='"pb_link"'>" [Html.txt pb_diff.name] "</a>\
         </td>\
-        <td>\
-          " [Html.txt (Misc.pp_to_string Helper.pp_prover pb_diff.prover_1)] "\
+        <td class='" [Helper.color_of_res pb_diff.expected_res] "'>\
+          " [Html.txt (Helper.string_of_res pb_diff.expected_res)] "\
         </td>\
         <td>\
           " [Html.txt (Helper.string_of_errcode pb_diff.errcode_1)] "\
@@ -701,12 +701,6 @@ end = struct
         <td class='" [Helper.color_of_res pb_diff.res_1] "'>\
           " [Html.txt (Helper.string_of_res pb_diff.res_1)] "\
         </td>\
-        <td class='" [Helper.color_of_res pb_diff.expected_res_1] "'>\
-          " [Html.txt (Helper.string_of_res pb_diff.expected_res_1)] "\
-        </td>\
-        <td>\
-          " [Html.txt (Misc.pp_to_string Helper.pp_prover pb_diff.prover_2)] "\
-        </td>\
         <td>\
           " [Html.txt (Helper.string_of_errcode pb_diff.errcode_2)] "\
         </td>\
@@ -715,9 +709,6 @@ end = struct
         </td>\
         <td class='" [Helper.color_of_res pb_diff.res_2] "'>\
           " [Html.txt (Helper.string_of_res pb_diff.res_2)] "\
-        </td>\
-        <td class='" [Helper.color_of_res pb_diff.expected_res_2] "'>\
-          " [Html.txt (Helper.string_of_res pb_diff.expected_res_2)] "\
         </td>\
       </tr>\
     "]
@@ -734,19 +725,17 @@ end = struct
         table-responsive text-center'>\
         <thead>\
           <tr>\
-            <th colspan='2'></th>\
-            <th colspan='5'>" [format_prover_header prover_1] "</th>\
-            <th colspan='5'>" [format_prover_header prover_2] "</th>\
+            <th colspan='3'></th>\
+            <th colspan='4'>" [format_prover_header prover_1] "</th>\
+            <th colspan='4'>" [format_prover_header prover_2] "</th>\
           </tr>
           <tr>\
             <th>Select</th>\
             <th class='text-left'>Problem</th>\
-            <th>Prover</th>\
+            <th>Expected</th>\
             <th>Error code</th>\
             <th>Running time</th>\
             <th>Result</th>\
-            <th>Expected</th>\
-            <th>Prover</th>\
             <th>Error code</th>\
             <th>Running time</th>\
             <th>Result</th>\

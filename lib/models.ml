@@ -271,12 +271,11 @@ end
 module Problem_diff = struct
   type t = {
     name: string;
+    expected_res: Res.t;
     prover_1: Prover.t;
     prover_2: Prover.t;
     res_1: Res.t;
     res_2: Res.t;
-    expected_res_1: Res.t;
-    expected_res_2: Res.t;
     errcode_1 : Errcode.t;
     errcode_2: Errcode.t;
     rtime_1: float;
@@ -303,14 +302,13 @@ module Problem_diff = struct
       get_many "\
         SELECT \
           p1_res.file as @string{name}, \
+          p1_res.file_expect as @Res{expected_res}, \
           p1_res.prover as @string{prover_name_1}, \
           p2_res.prover as @string{prover_name_2}, \
           p1.version as @string{prover_version_1}, \
           p2.version as @string{prover_version_2}, \
           p1_res.res as @Res{res_1}, \
           p2_res.res as @Res{res_2}, \
-          p1_res.file_expect as @Res{expected_res_1}, \
-          p2_res.file_expect as @Res{expected_res_2}, \
           p1_res.errcode as @Errcode{errcode_1}, \
           p2_res.errcode as @Errcode{errcode_2}, \
           p1_res.rtime as @float{rtime_1}, \
@@ -330,17 +328,15 @@ module Problem_diff = struct
           (ROUND(p1_res.rtime-p2_res.rtime, 0) <> 0 AND \
           NOT (p1_res.res = 'timeout' AND p2_res.res = 'timeout')))\
         LIMIT 50 OFFSET (50 * %int{page})\
-      " function_out] (fun ~name ~prover_name_1 ~prover_name_2 
-        ~prover_version_1 ~prover_version_2 ~res_1 ~res_2 
-        ~expected_res_1 ~expected_res_2 ~errcode_1 ~errcode_2 
+      " function_out] (fun ~name ~expected_res ~prover_name_1 ~prover_name_2 
+        ~prover_version_1 ~prover_version_2 ~res_1 ~res_2 ~errcode_1 ~errcode_2 
         ~rtime_1 ~rtime_2 -> {
           name;
+          expected_res;
           prover_1 = {name=prover_name_1; version=prover_version_1};
           prover_2 = {name=prover_name_2; version=prover_version_2};
           res_1;
           res_2;
-          expected_res_1;
-          expected_res_2;
           errcode_1;
           errcode_2;
           rtime_1;
