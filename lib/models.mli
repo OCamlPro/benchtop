@@ -65,7 +65,6 @@ module Problem : sig
     stderr: string;
     errcode: Errcode.t;
     rtime: float;
-    uuid: string
   }
 
   val count :
@@ -102,18 +101,7 @@ module Round_summary : sig
 end
 
 module Problem_diff : sig
-  type t = {
-    name: string;
-    expected_res: Res.t;
-    prover_1: Prover.t;
-    prover_2: Prover.t;
-    res_1: Res.t;
-    res_2: Res.t;
-    errcode_1 : Errcode.t;
-    errcode_2: Errcode.t;
-    rtime_1: float;
-    rtime_2: float
-  }
+  type t = Problem.t * Problem.t
 
   val count : unit -> (int, [> Error.sql]) request
 

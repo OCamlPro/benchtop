@@ -151,7 +151,6 @@ module Problem = struct
     stderr: string;
     errcode: Errcode.t;
     rtime: float;
-    uuid: string
   }
 
   let count ?(file="") ~res ~file_expect ~errcode ~only_diff 
@@ -177,7 +176,7 @@ module Problem = struct
 
   let select, select_one =
     let function_out (file, (res, (file_expect, 
-      (timeout, (stdout, (stderr, (errcode, (rtime, uuid)))))))) = {
+      (timeout, (stdout, (stderr, (errcode, rtime))))))) = {
         file; 
         res; 
         file_expect; 
@@ -185,8 +184,7 @@ module Problem = struct
         stdout; 
         stderr; 
         errcode; 
-        rtime; 
-        uuid}
+        rtime}
     in
     let open Caqti_type.Std in
     let open Caqti_request.Infix in
@@ -197,8 +195,7 @@ module Problem = struct
             (tup2 int 
               (tup2 octets 
                 (tup2 octets 
-                  (tup2 Errcode.t 
-                    (tup2 float string))))))))
+                  (tup2 Errcode.t float)))))))
     in
     ((fun ?(file="") ~res ~file_expect ~errcode ~only_diff ~page
       (module Db : Caqti_lwt.CONNECTION) -> 
@@ -207,12 +204,11 @@ module Problem = struct
         file, \
         res, \
         file_expect, \
-        prover_res.timeout, \
+        timeout, \
         stdout, \
         stderr, \
         errcode, \
-        rtime, \
-        CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
+        rtime \
       FROM prover_res \
       WHERE \
         (file = '%s' OR '%s' = '') AND \
@@ -237,8 +233,7 @@ module Problem = struct
         stdout, \
         stderr, \
         errcode, \
-        rtime, \
-        CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
+        rtime \
       FROM prover_res, prover \
       WHERE \
         file = '%s'"
@@ -269,27 +264,17 @@ module Round_summary = struct
 end
 
 module Problem_diff = struct
-  type t = {
-    name: string;
-    expected_res: Res.t;
-    prover_1: Prover.t;
-    prover_2: Prover.t;
-    res_1: Res.t;
-    res_2: Res.t;
-    errcode_1 : Errcode.t;
-    errcode_2: Errcode.t;
-    rtime_1: float;
-    rtime_2: float
-  }
+  type t = Problem.t * Problem.t
 
   let count = 
     [%rapper
       get_one "\
         SELECT \
           @int{COUNT(p1.file)}
-        FROM main.prover_res as p1, other.prover_res as p2 \
+        FROM main.prover_res as p1
+        JOIN other.prover_res as p2 \
+        ON p1.file = p2.file \
         WHERE \ 
-          p1.file = p2.file AND \
           (p1.res <> p2.res OR \
           p1.file_expect <> p2.file_expect OR \
           p1.errcode <> p2.errcode OR \
@@ -298,7 +283,7 @@ module Problem_diff = struct
       "]
 
   let select =
-    [%rapper
+    (*[%rapper
       get_many "\
         SELECT \
           p1_res.file as @string{name}, \
@@ -342,5 +327,53 @@ module Problem_diff = struct
           rtime_1;
           rtime_2
         }
-      )
+      )*)
+    [%rapper get_many "\
+      SELECT \
+        p1.file AS @string{file1}, \
+        p1.res AS @Res{res1}, \
+        p1.file_expect @Res{file_expect1}, \
+        p1.timeout @int{timeout1}, \
+        p1.stdout AS @octets{stdout1}, \
+        p1.stderr AS @octets{stderr1}, \
+        p1.errcode AS @Errcode{errcode1}, \
+        p1.rtime AS @float{rtime1}, \
+        p2.file AS @string{file2}, \
+        p2.res AS @Res{res2}, \
+        p2.file_expect @Res{file_expect2}, \
+        p2.timeout @int{timeout2}, \
+        p2.stdout AS @octets{stdout2}, \
+        p2.stderr AS @octets{stderr2}, \
+        p2.errcode AS @Errcode{errcode2}, \
+        p2.rtime AS @float{rtime2} \
+      FROM main.prover_res AS p1
+      JOIN other.prover_res AS p2
+      ON p1.file = p2.file
+       WHERE \
+        (p1.res <> p2.res OR \
+        p1.file_expect <> p2.file_expect OR \
+        p1.errcode <> p2.errcode OR \
+        (ROUND(p1.rtime-p2.rtime, 0) <> 0 AND \
+        NOT (p1.res = 'timeout' AND p2.res = 'timeout')))\
+      LIMIT 50 OFFSET (50 * %int{page})\
+    " function_out] (fun 
+      ~file1 ~res1 ~file_expect1 ~timeout1 ~stdout1 ~stderr1 ~errcode1 ~rtime1
+      ~file2 ~res2 ~file_expect2 ~timeout2 ~stdout2 ~stderr2 ~errcode2 ~rtime2 
+      -> Problem.({file=file1; 
+        res=res1; 
+        file_expect=file_expect1;
+        timeout=timeout1;
+        stdout=stdout1; 
+        stderr=stderr1;
+        errcode=errcode1;
+        rtime=rtime1},
+        {file=file2; 
+        res=res2; 
+        file_expect=file_expect2; 
+        timeout=timeout2;
+        stdout=stdout2; 
+        stderr=stderr2;
+        errcode=errcode2;
+        rtime=rtime2}
+    ))
 end
