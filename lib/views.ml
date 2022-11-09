@@ -676,39 +676,35 @@ module Problem_diffs_list : sig
     [> Html_types.tablex] Tyxml.Html.elt
   
   val filter_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
-end = struct 
-  let row ~number pb_diff _request =
-    let open Models.Problem_diff in
+end = struct
+  let format_problem (pb : Models.Problem.t) =
+    [%html "\
+      <td class='" [Helper.color_of_res pb.file_expect] "'>\
+        " [Html.txt (Helper.string_of_res pb.file_expect)] "\
+      </td>\
+      <td>\
+        " [Html.txt (Helper.string_of_errcode pb.errcode)] "\
+      </td>\
+      <td>\
+        " [Html.txt (Helper.string_of_float pb.rtime)] "\
+      </td>\
+      <td class='" [Helper.color_of_res pb.res] "'>\
+        " [Html.txt (Helper.string_of_res pb.res)] "\
+      </td>\
+    "]
+ 
+  let row ~number 
+    ((problem1, problem2) : (Models.Problem.t * Models.Problem.t)) _request =
     let pb_link = Format.sprintf 
-      "/round//problem/%s" (Dream.to_base64url pb_diff.name)
+      "/round//problem/%s" (Dream.to_base64url problem1.file)
     in
     [%html "
       <tr>\
-        <th>" [check_selector ~number (Dream.to_base64url pb_diff.name)] "</th>\
+        <th>" [check_selector ~number (Dream.to_base64url problem1.file)] "</th>\
         <td class='text-start text-break'>\
-          <a href='"pb_link"'>" [Html.txt pb_diff.name] "</a>\
+          <a href='"pb_link"'>" [Html.txt problem1.file] "</a>\
         </td>\
-        <td class='" [Helper.color_of_res pb_diff.expected_res] "'>\
-          " [Html.txt (Helper.string_of_res pb_diff.expected_res)] "\
-        </td>\
-        <td>\
-          " [Html.txt (Helper.string_of_errcode pb_diff.errcode_1)] "\
-        </td>\
-        <td>\
-          " [Html.txt (Helper.string_of_float pb_diff.rtime_1)] "\
-        </td>\
-        <td class='" [Helper.color_of_res pb_diff.res_1] "'>\
-          " [Html.txt (Helper.string_of_res pb_diff.res_1)] "\
-        </td>\
-        <td>\
-          " [Html.txt (Helper.string_of_errcode pb_diff.errcode_2)] "\
-        </td>\
-        <td>\
-          " [Html.txt (Helper.string_of_float pb_diff.rtime_2)] "\
-        </td>\
-        <td class='" [Helper.color_of_res pb_diff.res_2] "'>\
-          " [Html.txt (Helper.string_of_res pb_diff.res_2)] "\
-        </td>\
+        " ((format_problem problem1) @ (format_problem problem2)) "
       </tr>\
     "]
 
