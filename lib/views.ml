@@ -480,18 +480,18 @@ end = struct
     let open Models.Problem in
     let uuid = Dream.param request "uuid" in
     let pb_link = Format.sprintf 
-      "/round/%s/problem/%s" uuid (Dream.to_base64url pb.name)
+      "/round/%s/problem/%s" uuid (Dream.to_base64url pb.file)
     in
     [%html "
       <tr>\
         <th>\ 
-          " [check_selector ~number (Dream.to_base64url pb.name)] "\
+          " [check_selector ~number (Dream.to_base64url pb.file)] "\
         </th>\
         <td>\
           " [Html.txt (Format.asprintf "%a" Helper.pp_prover prover)] "\
         </td>\
         <td class='text-break'>\
-          <a href='"pb_link"'>" [Html.txt pb.name] "</a>\
+          <a href='"pb_link"'>" [Html.txt pb.file] "</a>\
         </td>\
         <td class='text-center'>\
           " [Html.txt (Helper.string_of_int pb.timeout)] "\
@@ -506,8 +506,8 @@ end = struct
           " [Html.txt (Helper.string_of_res pb.res)] "\
         </td>\
         <td class=\
-          '" ["text-center"; (Helper.color_of_res pb.expected_res)] "'>\
-          " [Html.txt (Helper.string_of_res pb.expected_res)] "\
+          '" ["text-center"; (Helper.color_of_res pb.file_expect)] "'>\
+          " [Html.txt (Helper.string_of_res pb.file_expect)] "\
         </td>\
       </tr>\
     "]
@@ -565,8 +565,8 @@ end = struct
       </div>\
       <div class='p-2'>\
           <div class='input-group'>\
-            <label class='input-group-text' for='name'>Problem</label>\
-            <input type='text' class='form-control' id='name' name='name' \
+            <label class='input-group-text' for='file'>Problem</label>\
+            <input type='text' class='form-control' id='file' name='file' \
               placeholder='...'/>\
           </div>\
       </div>\
@@ -584,7 +584,7 @@ end = struct
       "\
      </div>\
      <div class='p-2'>\
-      " [Selector.make ~multiple:true ~id:"expected_res" ~label:"Expected"
+      " [Selector.make ~multiple:true ~id:"file_expect" ~label:"Expected"
           ~default_option:(Placeholder "")
           [("unsat", "unsat"); ("sat", "sat"); ("unknown", "unknown");
             ("error", "error")] request] "\
@@ -616,9 +616,9 @@ let render_round_detail request ~page ~total ~prover
   |> Helper.html_to_string
 
 let render_problem_trace request (pb : Models.Problem.t) =
-  let header = Format.sprintf "Problem %s" (Filename.basename pb.name) in
+  let header = Format.sprintf "Problem %s" (Filename.basename pb.file) in
   (* BUG: we should recover if the file cannot be read. *)
-  let problem_content = File.read_all (open_in pb.name) in
+  let problem_content = File.read_all (open_in pb.file) in
   let%html content = "\
     <div class='container-fluid'>\
       <div class='card'>\
@@ -631,7 +631,7 @@ let render_problem_trace request (pb : Models.Problem.t) =
               Result :\
               " [Html.txt (Helper.string_of_res pb.res)] "\
               Expected result :\
-              " [Html.txt (Helper.string_of_res pb.expected_res)] "\
+              " [Html.txt (Helper.string_of_res pb.file_expect)] "\
               Timeout :\
               " [Html.txt (Helper.string_of_int pb.timeout)] "\
               Error code :\

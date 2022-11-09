@@ -187,20 +187,20 @@ let problem ~name = function
   | Pending _ | Running _ ->
       Lwt_result.fail `Not_done
 
-let problems ?(only_diff=false) ?name ~res ~expected_res ~errcode ~page =
+let problems ?(only_diff=false) ?file ~res ~file_expect ~errcode ~page =
   function
     | Done {db_file; _} ->
         Models.retrieve ~db_file
-        (Models.Problem.select ?name ~res ~expected_res
+        (Models.Problem.select ?file ~res ~file_expect
           ~errcode ~only_diff ~page)
     | Pending _ | Running _ -> 
         Lwt_result.fail `Not_done
 
-let count ?(only_diff=false) ?name ~res ~expected_res ~errcode =
+let count ?(only_diff=false) ?file ~res ~file_expect ~errcode =
   function
     | Done {db_file; _} ->
         Models.retrieve ~db_file
-        (Models.Problem.count ?name ~res ~expected_res
+        (Models.Problem.count ?file ~res ~file_expect
           ~errcode ~only_diff)
     | Pending _ | Running _ -> 
         Lwt_result.fail `Not_done

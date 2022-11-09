@@ -57,9 +57,9 @@ end
 
 module Problem : sig
   type t = private {
-    name: string;
+    file: string;
     res: Res.t;
-    expected_res: Res.t;
+    file_expect: Res.t;
     timeout: int;
     stdout: string;
     stderr: string;
@@ -69,17 +69,17 @@ module Problem : sig
   }
 
   val count :
-    ?name:string ->
+    ?file:string ->
     res:Res.t list ->
-    expected_res:Res.t list ->
+    file_expect:Res.t list ->
     errcode:Errcode.t list ->
     only_diff:bool -> 
     (int, [> Error.sql]) request
  
   val select :
-    ?name:string ->
+    ?file:string ->
     res:Res.t list ->
-    expected_res:Res.t list ->
+    file_expect:Res.t list ->
     errcode:Errcode.t list ->
     only_diff:bool ->
     page:int ->
