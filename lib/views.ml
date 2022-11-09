@@ -76,7 +76,7 @@ end = struct
       Format.fprintf fmt "%s" prover.name
 end 
 
-let header_navbar content =
+let header_navbar ?(info = []) content =
   [%html "\
     <div class='container-fluid d-wrap flex-row flex-wrap'>\
       <a class='navbar-brand text-primary' href='#'>Benchtop</a>\
@@ -90,7 +90,9 @@ let header_navbar content =
         justify-content-center' id='collapse-content'>\
         " content "\
       </div>\
-      <div class='flex-lg-grow-0 flex-grow-1 justify-content-center'>\
+      <div class='flex-lg-grow-0 flex-grow-1 justify-content-center \
+        text-right text-primary pe-4'>\
+        " info "\
       </div>\ 
     </div>\
   "]
@@ -469,14 +471,13 @@ let render_rounds_list request ~is_running rounds provers =
 module Problems_list : sig
   val table:
     Dream.request ->
-    prover:Models.Prover.t ->
     Models.Problem.t list ->
     [> Html_types.tablex] Tyxml.Html.elt
   
   val action_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
   val filter_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
 end = struct 
-  let row request ~number ~prover pb =
+  let row request ~number pb =
     let open Models.Problem in
     let uuid = Dream.param request "uuid" in
     let pb_link = Format.sprintf 
@@ -487,9 +488,6 @@ end = struct
         <th>\ 
           " [check_selector ~number (Dream.to_base64url pb.file)] "\
         </th>\
-        <td>\
-          " [Html.txt (Format.asprintf "%a" Helper.pp_prover prover)] "\
-        </td>\
         <td class='text-break'>\
           <a href='"pb_link"'>" [Html.txt pb.file] "</a>\
         </td>\
@@ -512,17 +510,14 @@ end = struct
       </tr>\
     "]
   
-  let table request ~prover pbs =
-    let rows =  List.mapi (fun i pb ->
-      row request ~number:i ~prover pb
-    ) pbs in
+  let table request pbs =
+    let rows =  List.mapi (fun i pb -> row request ~number:i pb) pbs in
     [%html "\
       <table class='table table-striped table-hover align-middle \
         table-responsive'>\
         <thead>\
           <tr>\
             <th>Select</th>\
-            <td>Prover</td>\
             <td>Problem</td>\
             <td class='text-center'>Timeout</td>\
             <td class='text-center'>Error code</td>\
@@ -598,13 +593,17 @@ end = struct
     "]
 end
 
+let round_summary _request ~prover =
+  [Html.txt @@ Format.asprintf "%a" Helper.pp_prover prover]
+
 let render_round_detail request ~page ~total ~prover
   (_summary : Models.Round_summary.t) pbs =
   let open Problems_list in
   let current_uri = Dream.target request |> Uri.of_string in
-  let table = table request ~prover pbs  in
+  let table = table request pbs  in
   let (header_navbar, footer_navbar) = (
-      header_navbar [filter_form request; action_form request]
+      header_navbar ~info:(round_summary request ~prover) 
+        [ filter_form request; action_form request ]
     , footer_navbar [pagination ~current_uri ~limit:50 ~page ~total])
   in
   page_layout
