@@ -104,12 +104,11 @@ end
 module Problem_diff : sig
   type t = {
     name: string;
+    expected_res: Res.t;
     prover_1: Prover.t;
     prover_2: Prover.t;
     res_1: Res.t;
     res_2: Res.t;
-    expected_res_1: Res.t;
-    expected_res_2: Res.t;
     errcode_1 : Errcode.t;
     errcode_2: Errcode.t;
     rtime_1: float;
