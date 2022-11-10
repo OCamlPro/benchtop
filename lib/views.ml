@@ -43,6 +43,7 @@ end = struct
   let html_to_string html =
     Format.asprintf "%a@." (Html.pp ~indent:true ()) html
 
+  (* TODO: move this function in Models module. *)
   let pp_date fmt (tm : Unix.tm) = 
     Format.fprintf fmt "%02i/%02i/%04i %02i:%02i:%02i"
       tm.tm_mday (tm.tm_mon + 1) (tm.tm_year + 1900)
@@ -76,7 +77,7 @@ end = struct
       Format.fprintf fmt "%s" prover.name
 end 
 
-let header_navbar content =
+let header_navbar ?(info = []) content =
   [%html "\
     <div class='container-fluid d-wrap flex-row flex-wrap'>\
       <a class='navbar-brand text-primary' href='#'>Benchtop</a>\
@@ -90,7 +91,9 @@ let header_navbar content =
         justify-content-center' id='collapse-content'>\
         " content "\
       </div>\
-      <div class='flex-lg-grow-0 flex-grow-1 justify-content-center'>\
+      <div class='flex-lg-grow-0 flex-grow-1 justify-content-center \
+        text-right text-primary pe-4'>\
+        " info "\
       </div>\ 
     </div>\
   "]
@@ -211,6 +214,7 @@ let pagination ~current_uri ~limit ~page ~total =
     let lst = 
       ref [prev_or_next_link ~symbol:"❱" ~page ~is_prev:false]
     in
+    (* TODO: clean this code. *)
     for i = number_of_pages downto 0 do
       let is_activated = i = page in
       if (((i = 1 && page <> 0) || (i = number_of_pages-1 
@@ -376,9 +380,9 @@ end = struct
         let url = "round/" ^ summary.uuid in
         Html.(a ~a:[a_href url] [txt "Done"])
  
-  let format_provers (round : Round.t) =
-    let provers = Round.provers round in
-    Html.txt (Misc.sprintf_list Helper.pp_prover provers)
+  let format_prover (round : Round.t) =
+    let prover = Round.prover round in
+    Html.txt @@ Format.asprintf "%a" Helper.pp_prover prover
 
   let format_date (round : Round.t) =
     let date =
@@ -414,7 +418,7 @@ end = struct
       [%html "\
         <tr>\
           <th>" check_selector "</th>\
-          <td>" [format_provers round] "</td>\
+          <td>" [format_prover round] "</td>\
           <td>" [format_uuid round] "</td>\
           <td class='text-center'>" [format_result round] "</td>\
           <td class='text-center'>" [format_status round] "</td>\
@@ -467,27 +471,27 @@ let render_rounds_list request ~is_running rounds provers =
   |> Helper.html_to_string
 
 module Problems_list : sig
-  val table : Models.Problem.t list -> Dream.request ->
+  val table:
+    Dream.request ->
+    Models.Problem.t list ->
     [> Html_types.tablex] Tyxml.Html.elt
+  
   val action_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
   val filter_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
 end = struct 
-  let row ~number pb request =
+  let row request ~number pb =
     let open Models.Problem in
     let uuid = Dream.param request "uuid" in
     let pb_link = Format.sprintf 
-      "/round/%s/problem/%s" uuid (Dream.to_base64url pb.name)
+      "/round/%s/problem/%s" uuid (Dream.to_base64url pb.file)
     in
     [%html "
       <tr>\
         <th>\ 
-          " [check_selector ~number (Dream.to_base64url pb.name)] "\
+          " [check_selector ~number (Dream.to_base64url pb.file)] "\
         </th>\
-        <td>\
-          " [Html.txt (Format.asprintf "%a" Helper.pp_prover pb.prover)] "\
-        </td>\
         <td class='text-break'>\
-          <a href='"pb_link"'>" [Html.txt pb.name] "</a>\
+          <a href='"pb_link"'>" [Html.txt pb.file] "</a>\
         </td>\
         <td class='text-center'>\
           " [Html.txt (Helper.string_of_int pb.timeout)] "\
@@ -502,23 +506,20 @@ end = struct
           " [Html.txt (Helper.string_of_res pb.res)] "\
         </td>\
         <td class=\
-          '" ["text-center"; (Helper.color_of_res pb.expected_res)] "'>\
-          " [Html.txt (Helper.string_of_res pb.expected_res)] "\
+          '" ["text-center"; (Helper.color_of_res pb.file_expect)] "'>\
+          " [Html.txt (Helper.string_of_res pb.file_expect)] "\
         </td>\
       </tr>\
     "]
   
-  let table pbs request =
-    let rows =  List.mapi (fun i pb ->
-      row ~number:i pb request
-    ) pbs in
+  let table request pbs =
+    let rows =  List.mapi (fun i pb -> row request ~number:i pb) pbs in
     [%html "\
       <table class='table table-striped table-hover align-middle \
         table-responsive'>\
         <thead>\
           <tr>\
             <th>Select</th>\
-            <td>Prover</td>\
             <td>Problem</td>\
             <td class='text-center'>Timeout</td>\
             <td class='text-center'>Error code</td>\
@@ -552,19 +553,19 @@ end = struct
     [%html "\
     <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
       method='get'>\
-      <div class='form-check form-switch col-lg-1 p-2'>\
+      <div class='form-check form-switch p-2'>\
         <label class='form-check-label' for='only_diff'>\
           Diff\
         </label>\
-        " [checkbox ~checked ~cla:["form-check-input"; "float-end"] 
+        " [checkbox ~checked ~cla:["form-check-input"] 
             "only_diff"] "\
       </div>\
       <div class='p-2'>\
-          <div class='input-group'>\
-            <label class='input-group-text' for='name'>Problem</label>\
-            <input type='text' class='form-control' id='name' name='name' \
-              placeholder='...'/>\
-          </div>\
+        <div class='input-group'>\
+          <label class='input-group-text' for='file'>Problem</label>\
+          <input type='text' class='form-control' id='file' name='file' \
+            placeholder='...'/>\
+        </div>\
       </div>\
       <div class='p-2'>\
       " [Selector.make ~multiple:true ~id:"errcode" ~label:"Error code"
@@ -574,16 +575,14 @@ end = struct
      </div>\
      <div class='p-2'>\
       " [Selector.make ~multiple:true ~id:"res" ~label:"Result"
-          ~default_option:(Placeholder "")
-          possible_results
-          request]
+          ~default_option:(Placeholder "") 
+          possible_results request]
       "\
      </div>\
      <div class='p-2'>\
-      " [Selector.make ~multiple:true ~id:"expected_res" ~label:"Expected"
+      " [Selector.make ~multiple:true ~id:"file_expect" ~label:"Expected"
           ~default_option:(Placeholder "")
-          possible_results
-          request] "\
+          possible_results request] "\
      </div>\
      <div class='p-2'>\
         <button class='btn btn-outline-success w-100' type='submit'>\
@@ -594,13 +593,17 @@ end = struct
     "]
 end
 
-let render_round_detail request ~page ~total
+let round_summary _request ~prover =
+  [Html.txt @@ Format.asprintf "%a" Helper.pp_prover prover]
+
+let render_round_detail request ~page ~total ~prover
   (_summary : Models.Round_summary.t) pbs =
   let open Problems_list in
   let current_uri = Dream.target request |> Uri.of_string in
-  let table = table pbs request in
+  let table = table request pbs  in
   let (header_navbar, footer_navbar) = (
-      header_navbar [filter_form request; action_form request]
+      header_navbar ~info:(round_summary request ~prover) 
+        [ filter_form request; action_form request ]
     , footer_navbar [pagination ~current_uri ~limit:50 ~page ~total])
   in
   page_layout
@@ -612,9 +615,9 @@ let render_round_detail request ~page ~total
   |> Helper.html_to_string
 
 let render_problem_trace request (pb : Models.Problem.t) =
-  let header = Format.sprintf "Problem %s" (Filename.basename pb.name) in
+  let header = Format.sprintf "Problem %s" (Filename.basename pb.file) in
   (* BUG: we should recover if the file cannot be read. *)
-  let problem_content = File.read_all (open_in pb.name) in
+  let problem_content = File.read_all (open_in pb.file) in
   let%html content = "\
     <div class='container-fluid'>\
       <div class='card'>\
@@ -627,7 +630,7 @@ let render_problem_trace request (pb : Models.Problem.t) =
               Result :\
               " [Html.txt (Helper.string_of_res pb.res)] "\
               Expected result :\
-              " [Html.txt (Helper.string_of_res pb.expected_res)] "\
+              " [Html.txt (Helper.string_of_res pb.file_expect)] "\
               Timeout :\
               " [Html.txt (Helper.string_of_int pb.timeout)] "\
               Error code :\
@@ -665,55 +668,50 @@ let render_problem_trace request (pb : Models.Problem.t) =
   |> Helper.html_to_string
 
 module Problem_diffs_list : sig
-  val table : Models.Problem_diff.t list -> Dream.request ->
+  val table:
+    Dream.request ->
+    prover_1:Models.Prover.t ->
+    prover_2:Models.Prover.t ->
+    Models.Problem_diff.t list ->
     [> Html_types.tablex] Tyxml.Html.elt
+  
   val filter_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
-end = struct 
-  let row ~number pb_diff _request =
-    let open Models.Problem_diff in
+end = struct
+  let format_problem (pb : Models.Problem.t) =
+    [%html "\
+      <td>\
+        " [Html.txt (Helper.string_of_errcode pb.errcode)] "\
+      </td>\
+      <td>\
+        " [Html.txt (Helper.string_of_float pb.rtime)] "\
+      </td>\
+      <td class='" [Helper.color_of_res pb.res] "'>\
+        " [Html.txt (Helper.string_of_res pb.res)] "\
+      </td>\
+    "]
+ 
+  let row ~number 
+    ((problem1, problem2) : (Models.Problem.t * Models.Problem.t)) _request =
     let pb_link = Format.sprintf 
-      "/round//problem/%s" (Dream.to_base64url pb_diff.name)
+      "/round//problem/%s" (Dream.to_base64url problem1.file)
     in
     [%html "
       <tr>\
-        <th>" [check_selector ~number (Dream.to_base64url pb_diff.name)] "</th>\
+        <th>" [check_selector ~number (Dream.to_base64url problem1.file)] "</th>\
         <td class='text-start text-break'>\
-          <a href='"pb_link"'>" [Html.txt pb_diff.name] "</a>\
+          <a href='"pb_link"'>" [Html.txt problem1.file] "</a>\
         </td>\
-        <td>\
-          " [Html.txt (Misc.pp_to_string Helper.pp_prover pb_diff.prover_1)] "\
+        <td class='" [Helper.color_of_res problem1.file_expect] "'>\
+          " [Html.txt (Helper.string_of_res problem1.file_expect)] "\
         </td>\
-        <td>\
-          " [Html.txt (Helper.string_of_errcode pb_diff.errcode_1)] "\
-        </td>\
-        <td>\
-          " [Html.txt (Helper.string_of_float pb_diff.rtime_1)] "\
-        </td>\
-        <td class='" [Helper.color_of_res pb_diff.res_1] "'>\
-          " [Html.txt (Helper.string_of_res pb_diff.res_1)] "\
-        </td>\
-        <td class='" [Helper.color_of_res pb_diff.expected_res_1] "'>\
-          " [Html.txt (Helper.string_of_res pb_diff.expected_res_1)] "\
-        </td>\
-        <td>\
-          " [Html.txt (Misc.pp_to_string Helper.pp_prover pb_diff.prover_2)] "\
-        </td>\
-        <td>\
-          " [Html.txt (Helper.string_of_errcode pb_diff.errcode_2)] "\
-        </td>\
-        <td>\
-          " [Html.txt (Helper.string_of_float pb_diff.rtime_2)] "\
-        </td>\
-        <td class='" [Helper.color_of_res pb_diff.res_2] "'>\
-          " [Html.txt (Helper.string_of_res pb_diff.res_2)] "\
-        </td>\
-        <td class='" [Helper.color_of_res pb_diff.expected_res_2] "'>\
-          " [Html.txt (Helper.string_of_res pb_diff.expected_res_2)] "\
-        </td>\
+        " ((format_problem problem1) @ (format_problem problem2)) "
       </tr>\
     "]
+
+  let format_prover_header prover =
+    Html.txt @@ Format.asprintf "Prover: %a" Helper.pp_prover prover
   
-  let table pb_diffs request =
+  let table request ~prover_1 ~prover_2 pb_diffs =
     let rows =  List.mapi (fun i pb_diff ->
       row ~number:i pb_diff request
     ) pb_diffs in
@@ -722,23 +720,24 @@ end = struct
         table-responsive text-center'>\
         <thead>\
           <tr>\
-            <th colspan='2'></th>\
-            <th colspan='5'>Round 1</th>\
-            <th colspan='5'>Round 2</th>\
+            <th colspan='3'></th>\
+            <th colspan='3'>\
+              " [format_prover_header prover_1] "\
+            </th>\
+            <th colspan='3'>\
+              " [format_prover_header prover_2] "\
+            </th>\
           </tr>
           <tr>\
             <th>Select</th>\
             <th class='text-left'>Problem</th>\
-            <th>Prover</th>\
+            <th>Expected</th>\
             <th>Error code</th>\
             <th>Running time</th>\
             <th>Result</th>\
-            <th>Expected</th>\
-            <th>Prover</th>\
             <th>Error code</th>\
             <th>Running time</th>\
             <th>Result</th>\
-            <th>Expected</th>\
           </tr>\
         </thead>\
         <tbody class='table-group-divider'>\
@@ -747,27 +746,45 @@ end = struct
       </table>\
     "]
 
-  let filter_form _request =
+  let filter_form request =
+    let checked = 
+      Misc.look_up_get_opt_param request "show_rtime_reg" 
+      |> Option.is_some
+    in
     [%html "\
     <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
       method='get'>\
-      <div class='p-2'>\
-          <div class='input-group'>\
-            <label class='input-group-text' for='name'>Problem</label>\
-            <input type='text' class='form-control' id='name' name='name' \
-              placeholder='...'/>\
-          </div>\
+      <div class='form-check form-switch p-2'>\
+        <label class='form-check-label' for='show_rtime_reg'>\
+          Show running time regression\
+        </label>\
+        " [checkbox ~checked ~cla:["form-check-input"] 
+            "show_rtime_reg"] "\
       </div>\
-     <div class='p-2'>\
+      <div class='p-2'>\
+        " [Selector.make ~id:"kind_diff" ~label:"Kind"
+          ~default_option:(Default_value {key="difference"; value="difference"})
+          [ ("improvement", "improvement"); 
+            ("regression", "regression") ] request]
+        "\
+      </div>\
+      <div class='p-2'>\
+        <div class='input-group'>\
+          <label class='input-group-text' for='name'>Problem</label>\
+          <input type='text' class='form-control' id='file' name='file' \
+            placeholder='...'/>\
+        </div>\
+      </div>\
+      <div class='p-2'>\
         <button class='btn btn-outline-success w-100' type='submit'>\
           Filter\
         </button>\
       </div>\
    </form>\
-    "]
+   "]
 end
 
-let render_rounds_diff request ~page ~total pbs_diff =
+let render_rounds_diff request ~page ~total ~prover_1 ~prover_2 pbs_diff =
   let open Problem_diffs_list in
   let current_uri = Dream.target request |> Uri.of_string in
   let (header_navbar, footer_navbar) = (
@@ -779,5 +796,5 @@ let render_rounds_diff request ~page ~total pbs_diff =
     ~subtitle:"Difference"
     ~hcontent:[header_navbar]
     ~fcontent:[footer_navbar]
-    [table pbs_diff request]
+    [table request ~prover_1 ~prover_2 pbs_diff]
   |> Helper.html_to_string

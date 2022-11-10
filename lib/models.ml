@@ -97,6 +97,27 @@ module Time = struct
     Caqti_type.(custom ~encode ~decode float)
 end
 
+module Kind_diff = struct
+  type t = Improvement | Regression | Difference
+  
+  let decode = function
+    | "improvement" -> Ok Improvement
+    | "regression" -> Ok Regression
+    | "difference" -> Ok Difference
+    | _ as msg -> Error (Format.sprintf "Unknown kind of comparison '%s'" msg)
+ 
+  let of_string kind = Result.to_option (decode kind)
+
+  let t =
+    let encode = function
+      | Improvement -> Ok "improvement"
+      | Regression -> Ok "regression"
+      | Difference-> Ok "difference"
+    in
+    Caqti_type.(custom ~encode ~decode string)
+end
+
+
 module Prover = struct
   type t = {
     name: string;
@@ -143,117 +164,102 @@ let pp_quote pp fmt = Format.fprintf fmt "'%a'" pp
 
 module Problem = struct
   type t = {
-    prover: Prover.t;
-    name: string;
+    file: string;
     res: Res.t;
-    expected_res: Res.t;
+    file_expect: Res.t;
     timeout: int;
     stdout: string;
     stderr: string;
     errcode: Errcode.t;
     rtime: float;
-    uuid: string
   }
 
-  let count ?(name="") ~res ~expected_res ~errcode ~only_diff 
+  let count ?(file="") ~res ~file_expect ~errcode ~only_diff 
     (module Db : Caqti_lwt.CONNECTION) =
     let open Caqti_type.Std in
     let open Caqti_request.Infix in
     Db.find (unit ->! int @@ 
       Format.asprintf "\
         SELECT \
-          COUNT(file)
+          COUNT(*)
         FROM prover_res \
         WHERE \
-          (file = '%s' OR '%s' = '') AND \
+          file LIKE '%%%s%%' AND \
           (res IN (%a) OR '%a' = '') AND \
           (file_expect IN (%a) OR '%a' = '') AND \
           (errcode IN (%a) OR '%a' = '') AND \
           (NOT %B OR (res <> file_expect))"
-        name name
+        file
         (Misc.pp_list (pp_quote Res.pp)) res (Misc.pp_list Res.pp) res
-        (Misc.pp_list (pp_quote Res.pp)) expected_res (Misc.pp_list Res.pp) expected_res
+        (Misc.pp_list (pp_quote Res.pp)) file_expect (Misc.pp_list Res.pp) file_expect 
         (Misc.pp_list (pp_quote Errcode.pp)) errcode (Misc.pp_list Errcode.pp) errcode
         only_diff) () 
 
   let select, select_one =
-    let function_out (prover_name, (prover_version, (name, (res, (expected_res, 
-      (timeout, (stdout, (stderr, (errcode, (rtime, uuid)))))))))) = {
-        prover={
-          name=prover_name; 
-          version=prover_version}; 
-        name; 
-        res; 
-        expected_res; 
-        timeout; 
-        stdout; 
-        stderr; 
-        errcode; 
-        rtime; 
-        uuid}
+    let function_out (file, (res, (file_expect, 
+      (timeout, (stdout, (stderr, (errcode, rtime))))))) = {
+        file;
+        res;
+        file_expect;
+        timeout;
+        stdout;
+        stderr;
+        errcode;
+        rtime}
     in
     let open Caqti_type.Std in
     let open Caqti_request.Infix in
     let output = Caqti_type.
       (tup2 string 
-        (tup2 string 
-          (tup2 string 
-            (tup2 Res.t 
-              (tup2 Res.t 
-                (tup2 int 
-                  (tup2 octets 
-                    (tup2 octets 
-                      (tup2 Errcode.t 
-                        (tup2 float string))))))))))
+        (tup2 Res.t 
+          (tup2 Res.t 
+            (tup2 int 
+              (tup2 octets 
+                (tup2 octets 
+                  (tup2 Errcode.t float)))))))
     in
-    ((fun ?(name="") ~res ~expected_res ~errcode ~only_diff ~page
+    ((fun ?(file="") ~res ~file_expect ~errcode ~only_diff ~page
       (module Db : Caqti_lwt.CONNECTION) -> 
       Db.collect_list (unit ->* output @@
-      Format.asprintf "SELECT \
-        prover, \
-        prover.version, \
+      Format.asprintf 
+      "SELECT \
         file, \
         res, \
         file_expect, \
-        prover_res.timeout, \
+        timeout, \
         stdout, \
         stderr, \
         errcode, \
-        rtime, \
-        CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
-      FROM prover_res, prover \
+        rtime \
+      FROM prover_res \
       WHERE \
-        prover.name = prover_res.prover AND \
-        (file = '%s' OR '%s' = '') AND \
+        file LIKE '%%%s%%' AND \
         (res IN (%a) OR '%a' = '') AND \
         (file_expect IN (%a) OR '%a' = '') AND \
         (errcode IN (%a) OR '%a' = '') AND \
         (NOT %B OR (res <> file_expect)) \
-      LIMIT 50 OFFSET (50*%i)" 
-      name name
+      LIMIT 50 OFFSET (50*%i)"
+      file
       (Misc.pp_list (pp_quote Res.pp)) res (Misc.pp_list Res.pp) res
-      (Misc.pp_list (pp_quote Res.pp)) expected_res (Misc.pp_list Res.pp) expected_res
+      (Misc.pp_list (pp_quote Res.pp)) file_expect (Misc.pp_list Res.pp) file_expect 
       (Misc.pp_list (pp_quote Errcode.pp)) errcode (Misc.pp_list Errcode.pp) errcode
       only_diff
       page) () >|? List.map function_out), 
     (fun ?(name = "NULL") (module Db : Caqti_lwt.CONNECTION) ->
       Db.find (unit ->! output @@
-      Format.asprintf "SELECT \
-        prover, \
-        prover.version, \
+      Format.asprintf 
+      "SELECT \
         file, \
         res, \
         file_expect, \
-        prover_res.timeout, \
+        timeout, \
         stdout, \
         stderr, \
         errcode, \
-        rtime, \
-        CAST ((SELECT value FROM meta WHERE key = 'uuid') AS TEXT) \
-      FROM prover_res, prover \
+        rtime \
+      FROM prover_res \
       WHERE \
-        prover.name = prover_res.prover AND \
-        file = '%s'"
+        file LIKE '%%%s%%'"
       name) () >|? function_out))
 end
 
@@ -281,82 +287,119 @@ module Round_summary = struct
 end
 
 module Problem_diff = struct
-  type t = {
-    name: string;
-    prover_1: Prover.t;
-    prover_2: Prover.t;
-    res_1: Res.t;
-    res_2: Res.t;
-    expected_res_1: Res.t;
-    expected_res_2: Res.t;
-    errcode_1 : Errcode.t;
-    errcode_2: Errcode.t;
-    rtime_1: float;
-    rtime_2: float
-  }
+  type t = Problem.t * Problem.t
 
   let count = 
     [%rapper
       get_one "\
         SELECT \
-          @int{COUNT(p1.file)}
-        FROM main.prover_res as p1, other.prover_res as p2 \
-        WHERE \ 
-          p1.file = p2.file AND \
-          (p1.res <> p2.res OR \
+          @int{COUNT(*)}
+        FROM main.prover_res as p1
+        JOIN other.prover_res as p2 \
+        ON p1.file = p2.file \
+        WHERE \
+          p1.file LIKE ('%' || %string{file} || '%') AND \
+          ((((p1.res = p1.file_expect AND \
+          p1.file_expect NOT IN ('error', 'unknown', 'timeout') AND \
+          p2.res <> p2.file_expect) OR \
+          ((ROUND(p1.rtime-p2.rtime, 0) <> 0 AND \
+          p1.rtime < p2.rtime AND \
+          NOT (p1.res = 'timeout' AND p2.res = 'timeout')) AND \
+          %bool{show_rtime_reg})) AND \
+          %Kind_diff{kind_diff} = 'improvement') \
+          OR \
+          (((p2.res = p2.file_expect AND \
+          p2.file_expect NOT IN ('error', 'unknown', 'timeout') AND \
+          p1.res <> p1.file_expect) OR \
+          ((ROUND(p1.rtime-p2.rtime, 0) <> 0 AND \
+          p1.rtime < p2.rtime AND \
+          NOT (p1.res = 'timeout' AND p2.res = 'timeout')) AND \
+          %bool{show_rtime_reg})) AND \
+          %Kind_diff{kind_diff} = 'regression') \
+          OR \
+          (((p1.res <> p2.res OR \
           p1.file_expect <> p2.file_expect OR \
-          p1.errcode <> p2.errcode OR \
-          (ROUND(p1.rtime-p2.rtime, 0) <> 0 AND \
-          NOT (p1.res = 'timeout' AND p2.res = 'timeout')))\
+          p1.errcode <> p2.errcode) OR \
+          ((ROUND(p1.rtime-p2.rtime, 0) <> 0 AND \
+          NOT (p1.res = 'timeout' AND p2.res = 'timeout')) OR \
+          %bool{show_rtime_reg})) AND \
+          %Kind_diff{kind_diff} = 'difference'))
       "]
 
   let select =
-    [%rapper
-      get_many "\
-        SELECT \
-          p1_res.file as @string{name}, \
-          p1_res.prover as @string{prover_name_1}, \
-          p2_res.prover as @string{prover_name_2}, \
-          p1.version as @string{prover_version_1}, \
-          p2.version as @string{prover_version_2}, \
-          p1_res.res as @Res{res_1}, \
-          p2_res.res as @Res{res_2}, \
-          p1_res.file_expect as @Res{expected_res_1}, \
-          p2_res.file_expect as @Res{expected_res_2}, \
-          p1_res.errcode as @Errcode{errcode_1}, \
-          p2_res.errcode as @Errcode{errcode_2}, \
-          p1_res.rtime as @float{rtime_1}, \
-          p2_res.rtime as @float{rtime_2} \
-        FROM \
-          main.prover_res as p1_res, \
-          main.prover as p1, \
-          other.prover_res as p2_res, \
-          other.prover as p2 \
-        WHERE \
-          p1_res.file = p2_res.file AND \
-          p1.name = p1_res.prover AND \
-          p2.name = p2_res.prover AND \
-          (p1_res.res <> p2_res.res OR \
-          p1_res.file_expect <> p2_res.file_expect OR \
-          p1_res.errcode <> p2_res.errcode OR \
-          (ROUND(p1_res.rtime-p2_res.rtime, 0) <> 0 AND \
-          NOT (p1_res.res = 'timeout' AND p2_res.res = 'timeout')))\
-        LIMIT 50 OFFSET (50 * %int{page})\
-      " function_out] (fun ~name ~prover_name_1 ~prover_name_2 
-        ~prover_version_1 ~prover_version_2 ~res_1 ~res_2 
-        ~expected_res_1 ~expected_res_2 ~errcode_1 ~errcode_2 
-        ~rtime_1 ~rtime_2 -> {
-          name;
-          prover_1 = {name=prover_name_1; version=prover_version_1};
-          prover_2 = {name=prover_name_2; version=prover_version_2};
-          res_1;
-          res_2;
-          expected_res_1;
-          expected_res_2;
-          errcode_1;
-          errcode_2;
-          rtime_1;
-          rtime_2
-        }
-      )
+    [%rapper get_many "\
+      SELECT \
+        p1.file AS @string{file1}, \
+        p1.res AS @Res{res1}, \
+        p1.file_expect @Res{file_expect1}, \
+        p1.timeout @int{timeout1}, \
+        p1.stdout AS @octets{stdout1}, \
+        p1.stderr AS @octets{stderr1}, \
+        p1.errcode AS @Errcode{errcode1}, \
+        p1.rtime AS @float{rtime1}, \
+        p2.file AS @string{file2}, \
+        p2.res AS @Res{res2}, \
+        p2.file_expect @Res{file_expect2}, \
+        p2.timeout @int{timeout2}, \
+        p2.stdout AS @octets{stdout2}, \
+        p2.stderr AS @octets{stderr2}, \
+        p2.errcode AS @Errcode{errcode2}, \
+        p2.rtime AS @float{rtime2} \
+      FROM main.prover_res AS p1 \
+      JOIN other.prover_res AS p2 \
+      ON p1.file = p2.file \
+      WHERE \
+          p1.file LIKE ('%' || %string{file} || '%') AND \
+          ((((p1.res = p1.file_expect AND \
+          p1.file_expect NOT IN ('error', 'unknown', 'timeout') AND \
+          p2.res <> p2.file_expect) OR \
+          ((ROUND(p1.rtime-p2.rtime, 0) <> 0 AND \
+          p1.rtime < p2.rtime AND \
+          NOT (p1.res = 'timeout' AND p2.res = 'timeout')) AND \
+          %bool{show_rtime_reg})) AND \
+          %Kind_diff{kind_diff} = 'improvement') \
+          OR \
+          (((p2.res = p2.file_expect AND \
+          p2.file_expect NOT IN ('error', 'unknown', 'timeout') AND \
+          p1.res <> p1.file_expect) OR \
+          ((ROUND(p1.rtime-p2.rtime, 0) <> 0 AND \
+          p1.rtime < p2.rtime AND \
+          NOT (p1.res = 'timeout' AND p2.res = 'timeout')) AND \
+          %bool{show_rtime_reg})) AND \
+          %Kind_diff{kind_diff} = 'regression') \
+          OR \
+          (((p1.res <> p2.res OR \
+          p1.file_expect <> p2.file_expect OR \
+          p1.errcode <> p2.errcode) OR \
+          ((ROUND(p1.rtime-p2.rtime, 0) <> 0 AND \
+          NOT (p1.res = 'timeout' AND p2.res = 'timeout')) OR \
+          %bool{show_rtime_reg})) AND \
+          %Kind_diff{kind_diff} = 'difference'))
+      ORDER BY CASE WHEN
+        p1.res <> p2.res OR \
+        p1.file_expect <> p2.file_expect OR \
+        p1.errcode <> p2.errcode THEN 0
+        ELSE 1 END
+      LIMIT 50 OFFSET (50 * %int{page})\
+    " function_out] (fun 
+      ~file1 ~res1 ~file_expect1 ~timeout1 ~stdout1 ~stderr1 ~errcode1 ~rtime1
+      ~file2 ~res2 ~file_expect2 ~timeout2 ~stdout2 ~stderr2 ~errcode2 ~rtime2 
+      -> Problem.({
+        file=file1; 
+        res=res1; 
+        file_expect=file_expect1;
+        timeout=timeout1;
+        stdout=stdout1; 
+        stderr=stderr1;
+        errcode=errcode1;
+        rtime=rtime1},
+        {file=file2; 
+        res=res2; 
+        file_expect=file_expect2; 
+        timeout=timeout2;
+        stdout=stdout2; 
+        stderr=stderr2;
+        errcode=errcode2;
+        rtime=rtime2}
+      ))
 end

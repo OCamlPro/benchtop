@@ -27,8 +27,16 @@ module Errcode : sig
   include Rapper.CUSTOM with type t := t
 end
 
+(* TODO: replace this type by the built-in date in Caqti. *)
 module Time : sig
   type t = Unix.tm
+  include Rapper.CUSTOM with type t := t
+end
+
+module Kind_diff : sig
+  type t = Improvement | Regression | Difference
+  
+  val of_string : string -> t option
   include Rapper.CUSTOM with type t := t
 end
 
@@ -57,30 +65,28 @@ end
 
 module Problem : sig
   type t = private {
-    prover: Prover.t;
-    name: string;
+    file: string;
     res: Res.t;
-    expected_res: Res.t;
+    file_expect: Res.t;
     timeout: int;
     stdout: string;
     stderr: string;
     errcode: Errcode.t;
     rtime: float;
-    uuid: string
   }
 
   val count :
-    ?name:string ->
+    ?file:string ->
     res:Res.t list ->
-    expected_res:Res.t list ->
+    file_expect:Res.t list ->
     errcode:Errcode.t list ->
     only_diff:bool -> 
     (int, [> Error.sql]) request
  
   val select :
-    ?name:string ->
+    ?file:string ->
     res:Res.t list ->
-    expected_res:Res.t list ->
+    file_expect:Res.t list ->
     errcode:Errcode.t list ->
     only_diff:bool ->
     page:int ->
@@ -103,23 +109,18 @@ module Round_summary : sig
 end
 
 module Problem_diff : sig
-  type t = {
-    name: string;
-    prover_1: Prover.t;
-    prover_2: Prover.t;
-    res_1: Res.t;
-    res_2: Res.t;
-    expected_res_1: Res.t;
-    expected_res_2: Res.t;
-    errcode_1 : Errcode.t;
-    errcode_2: Errcode.t;
-    rtime_1: float;
-    rtime_2: float
-  }
+  type t = Problem.t * Problem.t
 
-  val count : unit -> (int, [> Error.sql]) request
+  val count : 
+    file:string ->
+    show_rtime_reg:bool ->
+    kind_diff:Kind_diff.t ->
+    (int, [> Error.sql]) request
 
   val select :
+    file:string ->
+    show_rtime_reg:bool ->
+    kind_diff:Kind_diff.t ->
     page:int ->
     (t list, [> Error.sql]) request
 end 

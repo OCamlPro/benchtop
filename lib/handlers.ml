@@ -55,13 +55,13 @@ let handle_rounds_list request =
 let handle_round_detail request =
   let view = 
     let ctx = Context.get () in
-    let name = Misc.look_up_get_opt_param request "name" in
+    let file = Misc.look_up_get_opt_param request "file" in
     let res =
       Misc.look_up_get_params request "res"
       |> map_opt Models.Res.of_string
     in
-    let expected_res =
-      Misc.look_up_get_params request "expected_res"
+    let file_expect =
+      Misc.look_up_get_params request "file_expect"
       |> map_opt Models.Res.of_string
     in
     let errcode =
@@ -81,16 +81,17 @@ let handle_round_detail request =
       Misc.look_up_param request "uuid"
       >>? Rounds_queue.find_by_uuid ctx.queue
     in
+    let prover = Round.prover round in
     let*? summary = Round.summary round in
     let*? total = 
-      Round.count ?name ~res ~expected_res ~errcode ~only_diff round 
+      Round.count ?file ~res ~file_expect ~errcode ~only_diff round 
     in 
     let+? pbs = 
-      Round.problems ?name ~res ~expected_res ~errcode ~only_diff ~page round
+      Round.problems ?file ~res ~file_expect ~errcode ~only_diff ~page round
     in
-    Views.render_round_detail request ~page ~total summary pbs
+    Views.render_round_detail request ~page ~total ~prover summary pbs
   in
-  Lwt.bind view (Helper.view_or_error_to_response request)
+  view >>= Helper.view_or_error_to_response request
 
 let handle_problem_trace request = 
   let view =
@@ -145,13 +146,13 @@ let generate_bp_config ~binary =
   close_out ch;
   filename
 
-let handle_schedule_round request = 
+let handle_schedule_round request =
   let ctx = Context.get () in
   (Misc.look_up_post_param request "prover" 
   >|? fun binary ->
-  let provers = [Models.Prover.of_binary_name binary] in
+  let prover = Models.Prover.of_binary_name binary in
   let config_path = generate_bp_config ~binary in
-  let new_round = Round.make ~provers ~cmd:
+  let new_round = Round.make ~prover ~cmd:
     ("benchpress", [|
       "benchpress"
     ; "run"
@@ -186,26 +187,44 @@ end
 
 let handle_rounds_diff request = 
   let ctx = Context.get () in
-  let page = Option.bind
-    (Misc.look_up_get_opt_param request "page") 
-    int_of_string_opt
+  let file = 
+    Misc.look_up_get_opt_param request "file"
+    |> Option.value ~default:""
+  in
+  let kind_diff = Option.bind 
+    (Misc.look_up_get_opt_param request "kind_diff")
+    Models.Kind_diff.of_string
+    |> Option.value ~default:Models.Kind_diff.Difference
+  in
+  let show_rtime_reg = 
+    Misc.look_up_get_opt_param request "show_rtime_reg"
+    |> Option.is_some
+  in
+  let page =
+    Misc.look_up_get_opt_param request "page"
+    |> fun x -> Option.bind x int_of_string_opt
     |> Option.value ~default:0
   in
-  let get_db_file uuid =
-    Misc.look_up_param request uuid
-    >>? Rounds_queue.find_by_uuid ctx.queue
-    >>? Round.db_file
-  in
-  Helper.view_or_error_to_response request =<<
-  let*? db_file1 = get_db_file "uuid1"
-  and*? db_file2 = get_db_file "uuid2" in
-  let*? total =
+  let view =
+    let*? round1 = 
+      Misc.look_up_param request "uuid1"
+      >>? Rounds_queue.find_by_uuid ctx.queue
+    and*? round2 = 
+      Misc.look_up_param request "uuid2"
+      >>? Rounds_queue.find_by_uuid ctx.queue
+    in
+    let*? db_file1 = Round.db_file round1 in
+    let*? db_file2 = Round.db_file round2 in
+    let*? total =
+      Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 
+        (Problem_diff.count ~file ~kind_diff ~show_rtime_reg))
+    in 
     Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 
-      (Problem_diff.count ()))
-  in 
-  Models.(retrieve ~db_file:db_file1 ~db_attached:db_file2 
-    (Problem_diff.select ~page))
-  >|? Views.render_rounds_diff request ~page ~total
+      (Problem_diff.select ~file ~kind_diff ~show_rtime_reg ~page))
+    >|? Views.render_rounds_diff request ~page ~total 
+      ~prover_1:(Round.prover round1) ~prover_2:(Round.prover round2)
+  in
+  view >>= Helper.view_or_error_to_response request 
 
 (* TODO: Clean up *)
 let handle_round_action_dispatcher request =
