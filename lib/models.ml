@@ -104,7 +104,7 @@ module Kind_diff = struct
     | "improvement" -> Ok Improvement
     | "regression" -> Ok Regression
     | "difference" -> Ok Difference
-    | _ -> Error "Unknown kind of comparison" 
+    | _ as msg -> Error (Format.sprintf "Unknown kind of comparison '%s'" msg)
  
   let of_string kind = Result.to_option (decode kind)
 
@@ -114,7 +114,7 @@ module Kind_diff = struct
       | Regression -> Ok "regression"
       | Difference-> Ok "difference"
     in
-   Caqti_type.(custom ~encode ~decode string)
+    Caqti_type.(custom ~encode ~decode string)
 end
 
 
