@@ -19,7 +19,7 @@ val (>>!) :
 val (>|!) :
   ('a, 'b) Lwt_result.t ->
   ('b -> 'c) ->
-  ('a, 'c) Lwt_result.t 
+  ('a, 'c) Lwt_result.t
 
 val (let*?) :
   ('a, 'b) Lwt_result.t ->
@@ -28,7 +28,7 @@ val (let*?) :
 
 val (and*?) :
   ('a, 'b) Lwt_result.t ->
-  ('c, 'b) Lwt_result.t -> 
+  ('c, 'b) Lwt_result.t ->
   (('a * 'c), 'b) Lwt_result.t
 
 val (let+?) :
@@ -37,6 +37,6 @@ val (let+?) :
   ('c, 'b) Lwt_result.t
 
 val (and+?) :
-  ('a, 'b) Lwt_result.t -> 
-  ('c, 'b) Lwt_result.t -> 
+  ('a, 'b) Lwt_result.t ->
+  ('c, 'b) Lwt_result.t ->
   (('a * 'c), 'b) Lwt_result.t

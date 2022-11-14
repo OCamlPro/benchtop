@@ -14,7 +14,8 @@ module Res : sig
     | Error
     | Timeout
     | Unexpected of string
-
+    [@@deriving yojson]
+  
   val of_string : string -> t option
   val to_string : t -> string
   include Rapper.CUSTOM with type t := t
@@ -34,7 +35,9 @@ module Time : sig
 end
 
 module Kind_diff : sig
-  type t = Improvement | Regression | Difference
+  type t = 
+    Improvement | Regression | Difference
+    [@@deriving yojson]
   
   val of_string : string -> t option
   include Rapper.CUSTOM with type t := t
@@ -44,7 +47,7 @@ module Prover : sig
   type t = private {
     name: string;
     version: string
-  }
+  } [@@deriving yojson]
 
   val select : 
     name: string option ->
@@ -61,6 +64,8 @@ module Prover : sig
     t list
 
   val of_binary_name : string -> t
+  val branch : t -> string
+  val hash : t -> string
 end
 
 module Problem : sig
@@ -73,7 +78,7 @@ module Problem : sig
     stderr: string;
     errcode: Errcode.t;
     rtime: float;
-  }
+  } [@@deriving yojson]
 
   val count :
     ?file:string ->

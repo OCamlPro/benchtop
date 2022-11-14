@@ -23,8 +23,10 @@
    tyxml
    fmt
    inotify.lwt
-   ppx_rapper_lwt)
- (preprocess (pps tyxml-ppx ppx_rapper)))
+   ppx_rapper_lwt
+   yojson
+   ppx_deriving_yojson.runtime)
+ (preprocess (pps tyxml-ppx ppx_rapper ppx_deriving_yojson)))
 
 (generate_sites_module
   (module location)

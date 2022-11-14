@@ -26,6 +26,7 @@ type form = [
 type param = [
   | form
   | `Key_not_found of string
+  | `Cannot_convert_json of string
 ]
 
 type misc = [

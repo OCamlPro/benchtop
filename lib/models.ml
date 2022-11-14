@@ -30,6 +30,7 @@ module Res = struct
     | Error
     | Timeout
     | Unexpected of string
+    [@@deriving yojson]
 
   let decode = function
     | "sat" -> Ok Sat
@@ -56,7 +57,9 @@ module Res = struct
 end
 
 module Errcode = struct
-  type t = Success | Failed of int
+  type t = 
+    Success | Failed of int
+    [@@deriving yojson]
 
   let decode = function
     | 0 -> Ok Success
@@ -98,7 +101,9 @@ module Time = struct
 end
 
 module Kind_diff = struct
-  type t = Improvement | Regression | Difference
+  type t = 
+    Improvement | Regression | Difference
+    [@@deriving yojson]
   
   let decode = function
     | "improvement" -> Ok Improvement
@@ -122,7 +127,7 @@ module Prover = struct
   type t = {
     name: string;
     version: string
-  }
+  } [@@deriving yojson]
 
   let select =
     [%rapper
@@ -134,7 +139,7 @@ module Prover = struct
           (name = %string?{name} OR %string?{name} IS NULL) AND \
           (version = %string?{version} OR %string?{version} IS NULL)\
       " record_out]
-  
+
   let select_one =
     [%rapper 
       get_one "\
@@ -146,18 +151,30 @@ module Prover = struct
           (version = %string?{version} OR %string?{version} IS NULL)\
       " record_out]
 
-  let readdir ~dir = 
-    File.readdir dir 
-    |> List.map (fun filename -> {name=filename; version=""})
-
-  let of_binary_name binary = 
-    let regexp = Str.regexp {|alt-ergo-\([a-zA-Z0-9_\-]+\)|} in
+  let of_binary_name binary =
+    (* FIXME: the regexp will refuse valid branch name. *)
+    let regexp = Str.regexp {|alt-ergo-\([a-zA-Z0-9_\-\~]+\)|} in
     let version = 
       if Str.string_match regexp binary 0 then
         Str.matched_group 1 binary
-      else ""
+      else "" (* FIXME: should raise an exception *)
     in
-    {name="alt-ergo"; version} 
+    {name="alt-ergo"; version}
+
+  let readdir ~dir = 
+    File.readdir dir 
+    |> List.map of_binary_name
+
+  let branch {version; _} =
+    match String.split_on_char '~' version with
+    | [br; _] -> br
+    | [br] -> br
+    | _ -> ""
+
+  let hash {version; _} =
+    match String.split_on_char '~' version with
+    | [_; hash] -> hash 
+    | _ -> ""
 end
 
 let pp_quote pp fmt = Format.fprintf fmt "'%a'" pp
@@ -172,7 +189,7 @@ module Problem = struct
     stderr: string;
     errcode: Errcode.t;
     rtime: float;
-  }
+  } [@@deriving yojson]
 
   let count ?(file="") ~res ~file_expect ~errcode ~only_diff 
     (module Db : Caqti_lwt.CONNECTION) =

@@ -338,7 +338,10 @@ let checkbox ?(checked=false) ?(cla=[]) id =
 let benchpress_form request ~is_running provers =
   let provers = List.map (fun prover ->
     let key = Format.asprintf "%a" Helper.pp_prover prover in
-    let value = key in
+    let value =
+      Models.Prover.to_yojson prover 
+      |> Yojson.Safe.to_string
+    in
     (key, value)
   ) provers in
   [%html "\
@@ -380,10 +383,6 @@ end = struct
         let url = "round/" ^ summary.uuid in
         Html.(a ~a:[a_href url] [txt "Done"])
  
-  let format_prover (round : Round.t) =
-    let prover = Round.prover round in
-    Html.txt @@ Format.asprintf "%a" Helper.pp_prover prover
-
   let format_date (round : Round.t) =
     let date =
       match round with
@@ -393,12 +392,6 @@ end = struct
     in 
     Fmt.str "since %a" Helper.pp_date date 
  
-  let format_uuid (round : Round.t) =
-    match round with
-    | Pending _ | Running _ -> Html.txt ""
-    | Done {summary; _} ->
-        Html.txt summary.uuid
-  
   let format_result (round : Round.t) =
     match round with
     | Pending _ | Running _ -> Html.txt "Not yet"
@@ -415,11 +408,13 @@ end = struct
         | Done {summary; _} ->
           [check_selector ~number (Dream.to_base64url summary.uuid)]
       in
+      let prover = Round.prover round in
       [%html "\
         <tr>\
           <th>" check_selector "</th>\
-          <td>" [format_prover round] "</td>\
-          <td>" [format_uuid round] "</td>\
+          <td>" [Html.txt prover.name] "</td>\
+          <td>" [Html.txt (Models.Prover.branch prover)] "</td>\
+          <td>" [Html.txt (Models.Prover.hash prover)] "</td>\
           <td class='text-center'>" [format_result round] "</td>\
           <td class='text-center'>" [format_status round] "</td>\
           <td class='text-center'>" [Html.txt (format_date round)] "</td>\
@@ -430,7 +425,7 @@ end = struct
       [%html "\
         <tr>\
           <th></th>\
-          <td colspan='5'>\
+          <td colspan='6'>\
             <span class='badge bg-danger'>Error</span>\
           </td>\
         </tr>\
@@ -445,7 +440,8 @@ end = struct
           <tr>\
             <th>Select</th>\
             <th>Prover</th>\
-            <th>Uuid</th>\
+            <th>Branch</th>\
+            <th>Hash</th>\
             <th class='text-center'>Result</th>\
             <th class='text-center'>Status</th>\
             <th class='text-center'>Date</th>\

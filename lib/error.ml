@@ -26,6 +26,7 @@ type form = [
 type param = [
   | form
   | `Key_not_found of string
+  | `Cannot_convert_json of string
 ]
 
 type misc = [
@@ -69,6 +70,8 @@ let pp_param fmt = function
   | #form as err -> pp_form fmt err
   | `Key_not_found str -> 
       Format.fprintf fmt "Cannot found the key %s" str
+  | `Cannot_convert_json str ->
+      Format.fprintf fmt "Cannot convert the json %s" str
 
 let pp_misc fmt = function
   | `Cannot_convert_to_base64 -> 

@@ -107,9 +107,9 @@ let handle_problem_trace request =
   in
   view >>= Helper.view_or_error_to_response request
 
-let pp_bp_config ~binary fmt () =
+let pp_bp_config ~(prover : Models.Prover.t) fmt () =
+  let binary = Format.sprintf "%s-%s" prover.name prover.version in
   let binary_path = Filename.concat Options.binaries_dir binary in
-  let prover = Models.Prover.of_binary_name binary in
   Format.fprintf fmt "\
   (import-prelude false)@\n\
   @[<v 2>(prover@ \
@@ -136,38 +136,43 @@ let pp_bp_config ~binary fmt () =
   prover.version
   binary_path
 
-let generate_bp_config ~binary =
-  let filename, ch = 
-    Filename.open_temp_file "benchpress_" ".sexp" 
+let generate_bp_config prover =
+  let filename, ch =
+    Filename.open_temp_file "benchpress_" ".sexp"
   in
   let fmt = Format.formatter_of_out_channel ch in
-  pp_bp_config ~binary fmt ();
-  Dream.debug (fun log -> log "%a" (pp_bp_config ~binary) ());
+  pp_bp_config ~prover fmt ();
+  Dream.debug (fun log -> log "%a" (pp_bp_config ~prover) ());
   close_out ch;
   filename
 
 let handle_schedule_round request =
   let ctx = Context.get () in
-  (Misc.look_up_post_param request "prover" 
-  >|? fun binary ->
-  let prover = Models.Prover.of_binary_name binary in
-  let config_path = generate_bp_config ~binary in
-  let new_round = Round.make ~prover ~cmd:
-    ("benchpress", [|
-      "benchpress"
-    ; "run"
-    ; "-j"
-    ; string_of_int Options.number_of_jobs
-    ; "-c"
-    ; config_path
-    ; "-t"
-    ; string_of_int Options.prover_timeout
-    ; "-p" 
-    ; "alt-ergo"
-    ; Options.tests_dir|]) 
+  let action =
+    let+? prover =
+      Misc.look_up_post_param request "prover"
+      >|? Yojson.Safe.from_string
+      >>? fun p -> Lwt.return @@ Models.Prover.of_yojson p
+      >|! fun err -> `Cannot_convert_json err
+    in
+    let config_path = generate_bp_config prover in
+    let new_round = Round.make ~prover ~cmd:
+      ("benchpress", [|
+        "benchpress"
+      ; "run"
+      ; "-j"
+      ; string_of_int Options.number_of_jobs
+      ; "-c"
+      ; config_path
+      ; "-t"
+      ; string_of_int Options.prover_timeout
+      ; "-p" 
+      ; "alt-ergo"
+      ; Options.tests_dir|])
+    in
+    Ok ({queue=Rounds_queue.push new_round ctx.queue} |> Context.set)
   in
-  Ok ({queue=Rounds_queue.push new_round ctx.queue} |> Context.set))
-  >>= Helper.redirect request
+  action >>= Helper.redirect request
 
 let handle_stop_round request =
   Dream.form request >>= function
