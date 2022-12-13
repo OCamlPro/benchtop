@@ -302,8 +302,8 @@ module Problem_diff = struct
           ((((p1.res = p1.file_expect AND \
           p1.file_expect NOT IN ('error', 'unknown', 'timeout') AND \
           p2.res <> p2.file_expect) OR \
-          ((ROUND(p1.rtime-p2.rtime, 0) <> 0 AND \
-          p1.rtime < p2.rtime AND \
+          (((p1.rtime-p2.rtime)/p1.rtime < -0.25 AND \
+          ROUND(p1.rtime-p2.rtime, 0) < -1 AND \
           NOT (p1.res = 'timeout' AND p2.res = 'timeout')) AND \
           %bool{show_rtime_reg})) AND \
           %Kind_diff{kind_diff} = 'improvement') \
@@ -311,8 +311,8 @@ module Problem_diff = struct
           (((p2.res = p2.file_expect AND \
           p2.file_expect NOT IN ('error', 'unknown', 'timeout') AND \
           p1.res <> p1.file_expect) OR \
-          ((ROUND(p1.rtime-p2.rtime, 0) <> 0 AND \
-          p1.rtime < p2.rtime AND \
+          (((p1.rtime-p2.rtime)/p1.rtime > 0.25 AND \
+          ROUND(p1.rtime-p2.rtime, 0) > 1 AND \
           NOT (p1.res = 'timeout' AND p2.res = 'timeout')) AND \
           %bool{show_rtime_reg})) AND \
           %Kind_diff{kind_diff} = 'regression') \
@@ -320,7 +320,8 @@ module Problem_diff = struct
           (((p1.res <> p2.res OR \
           p1.file_expect <> p2.file_expect OR \
           p1.errcode <> p2.errcode) OR \
-          ((ROUND(p1.rtime-p2.rtime, 0) <> 0 AND \
+          ((ABS(p1.rtime-p2.rtime)/p1.rtime > 0.25 AND \
+          ABS(ROUND(p1.rtime-p2.rtime, 0)) > 1 AND \
           NOT (p1.res = 'timeout' AND p2.res = 'timeout')) OR \
           %bool{show_rtime_reg})) AND \
           %Kind_diff{kind_diff} = 'difference'))
@@ -354,6 +355,7 @@ module Problem_diff = struct
           p1.file_expect NOT IN ('error', 'unknown', 'timeout') AND \
           p2.res <> p2.file_expect) OR \
           (((p1.rtime-p2.rtime)/p1.rtime < -0.25 AND \
+          ROUND(p1.rtime-p2.rtime, 0) < -1 AND \
           NOT (p1.res = 'timeout' AND p2.res = 'timeout')) AND \
           %bool{show_rtime_reg})) AND \
           %Kind_diff{kind_diff} = 'improvement') \
@@ -362,6 +364,7 @@ module Problem_diff = struct
           p2.file_expect NOT IN ('error', 'unknown', 'timeout') AND \
           p1.res <> p1.file_expect) OR \
           (((p1.rtime-p2.rtime)/p1.rtime > 0.25 AND \
+          ROUND(p1.rtime-p2.rtime, 0) > 1 AND \
           NOT (p1.res = 'timeout' AND p2.res = 'timeout')) AND \
           %bool{show_rtime_reg})) AND \
           %Kind_diff{kind_diff} = 'regression') \
@@ -370,6 +373,7 @@ module Problem_diff = struct
           p1.file_expect <> p2.file_expect OR \
           p1.errcode <> p2.errcode) OR \
           ((ABS(p1.rtime-p2.rtime)/p1.rtime > 0.25 AND \
+          ABS(ROUND(p1.rtime-p2.rtime, 0)) > 1 AND \
           NOT (p1.res = 'timeout' AND p2.res = 'timeout')) OR \
           %bool{show_rtime_reg})) AND \
           %Kind_diff{kind_diff} = 'difference'))

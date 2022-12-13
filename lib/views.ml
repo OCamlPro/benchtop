@@ -677,13 +677,17 @@ module Problem_diffs_list : sig
 
   val filter_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
 end = struct
-  let format_problem (pb : Models.Problem.t) =
+  let format_problem ~pos (pb : Models.Problem.t) =
     [%html "\
       <td>\
         " [Html.txt (Helper.string_of_errcode pb.errcode)] "\
       </td>\
       <td>\
-        " [Html.txt (Helper.string_of_float pb.rtime)] "\
+        " [Html.txt (
+          match pos with
+          | `Old -> Helper.string_of_float pb.rtime
+          | `New r -> Format.sprintf "%i%%" r
+        )] "\
       </td>\
       <td class='" [Helper.color_of_res pb.res] "'>\
         " [Html.txt (Helper.string_of_res pb.res)] "\
@@ -695,6 +699,10 @@ end = struct
     let pb_link = Format.sprintf
       "/round//problem/%s" (Dream.to_base64url problem1.file)
     in
+    let rel_timeout =
+      (problem1.rtime -. problem2.rtime) /. (problem1.rtime) *. 100.0
+      |> Float.round |> Float.to_int
+    in
     [%html "
       <tr>\
         <th>" [check_selector ~number (Dream.to_base64url problem1.file)] "</th>\
@@ -704,7 +712,8 @@ end = struct
         <td class='" [Helper.color_of_res problem1.file_expect] "'>\
           " [Html.txt (Helper.string_of_res problem1.file_expect)] "\
         </td>\
-        " ((format_problem problem1) @ (format_problem problem2)) "
+        " ((format_problem ~pos:`Old problem1)
+          @ (format_problem ~pos:(`New rel_timeout) problem2)) "
       </tr>\
     "]
 
