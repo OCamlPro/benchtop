@@ -584,7 +584,7 @@ end = struct
           ~default_option:(Placeholder "")
           possible_results request] "\
      </div>\
-     <div class='p-2'>\
+    <div class='p-2'>\
         <button class='btn btn-outline-success w-100' type='submit'>\
           Filter\
         </button>\
@@ -705,7 +705,9 @@ end = struct
     in
     [%html "
       <tr>\
-        <th>" [check_selector ~number (Dream.to_base64url problem1.file)] "</th>\
+        <th>"
+          [check_selector ~number (Dream.to_base64url problem1.file)]
+        "</th>\
         <td class='text-start text-break'>\
           <a href='"pb_link"'>" [Html.txt problem1.file] "</a>\
         </td>\
@@ -760,6 +762,10 @@ end = struct
       Misc.look_up_get_opt_param request "show_rtime_reg"
       |> Option.is_some
     in
+    let threshold =
+      Misc.look_up_get_opt_param request "threshold"
+      |> Option.value ~default:"25"
+    in
     [%html "\
     <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
       method='get'>\
@@ -782,6 +788,16 @@ end = struct
           <label class='input-group-text' for='name'>Problem</label>\
           <input type='text' class='form-control' id='file' name='file' \
             placeholder='...'/>\
+        </div>\
+      </div>\
+      <div class='p-2'>\
+        <div class='input-group'>\
+          <label class='input-group-text' for='file'>\
+            Time threshold (in %)\
+          </label>\
+          <input type='number' class='form-control' style='width: 5em'
+            id='threshold' name='threshold' value='" threshold "'
+            step='1' min='0'/>\
         </div>\
       </div>\
       <div class='p-2'>\
