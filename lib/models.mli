@@ -21,7 +21,7 @@ module Res : sig
 end
 
 module Errcode : sig
-  type t = private Success | Failed of int 
+  type t = private Success | Failed of int
 
   val of_string : string -> t option
   include Rapper.CUSTOM with type t := t
@@ -35,7 +35,7 @@ end
 
 module Kind_diff : sig
   type t = Improvement | Regression | Difference
-  
+
   val of_string : string -> t option
   include Rapper.CUSTOM with type t := t
 end
@@ -46,12 +46,12 @@ module Prover : sig
     version: string
   }
 
-  val select : 
+  val select :
     name: string option ->
     version: string option ->
     (t list, [> Error.sql]) request
 
-  val select_one : 
+  val select_one :
     name: string ->
     version: string option ->
     (t, [> Error.sql]) request
@@ -80,9 +80,9 @@ module Problem : sig
     res:Res.t list ->
     file_expect:Res.t list ->
     errcode:Errcode.t list ->
-    only_diff:bool -> 
+    only_diff:bool ->
     (int, [> Error.sql]) request
- 
+
   val select :
     ?file:string ->
     res:Res.t list ->
@@ -111,16 +111,18 @@ end
 module Problem_diff : sig
   type t = Problem.t * Problem.t
 
-  val count : 
+  val count :
     file:string ->
+    threshold:float ->
     show_rtime_reg:bool ->
     kind_diff:Kind_diff.t ->
     (int, [> Error.sql]) request
 
   val select :
     file:string ->
+    threshold:float ->
     show_rtime_reg:bool ->
     kind_diff:Kind_diff.t ->
     page:int ->
     (t list, [> Error.sql]) request
-end 
+end

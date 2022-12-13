@@ -4,7 +4,7 @@ module Helper : sig
   val html_to_string : Tyxml.Html.doc -> string
   val pp_date : Unix.tm Fmt.t
   val csrf_tag : Dream.request -> [> Html_types.input] Tyxml.Html.elt
- 
+
   val string_of_int : int -> string
   val string_of_float : float -> string
   val string_of_errcode : Models.Errcode.t -> string
@@ -44,10 +44,10 @@ end = struct
     Format.asprintf "%a@." (Html.pp ~indent:true ()) html
 
   (* TODO: move this function in Models module. *)
-  let pp_date fmt (tm : Unix.tm) = 
+  let pp_date fmt (tm : Unix.tm) =
     Format.fprintf fmt "%02i/%02i/%04i %02i:%02i:%02i"
       tm.tm_mday (tm.tm_mon + 1) (tm.tm_year + 1900)
-      tm.tm_hour tm.tm_min tm.tm_sec 
+      tm.tm_hour tm.tm_min tm.tm_sec
 
   let csrf_tag request =
     let token = Dream.csrf_token request in
@@ -75,7 +75,7 @@ end = struct
       Format.fprintf fmt "%s: %s" prover.name prover.version
     else
       Format.fprintf fmt "%s" prover.name
-end 
+end
 
 let header_navbar ?(info = []) content =
   [%html "\
@@ -94,7 +94,7 @@ let header_navbar ?(info = []) content =
       <div class='flex-lg-grow-0 flex-grow-1 justify-content-center \
         text-right text-primary pe-4'>\
         " info "\
-      </div>\ 
+      </div>\
     </div>\
   "]
 
@@ -117,7 +117,7 @@ let page_layout request ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
     /bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"
   in
   let bs_script_hash = "sha384-OERcA2EqjJCMA+/\
-    3y+gxIOqMEjwtxJY7qPCqsdltbNJuaOe923+mo//f6V8Qbsw3" 
+    3y+gxIOqMEjwtxJY7qPCqsdltbNJuaOe923+mo//f6V8Qbsw3"
   in
   [%html "\
     <html>\
@@ -126,14 +126,14 @@ let page_layout request ~subtitle ?(hcontent=[]) ?(fcontent=[]) content =
         <meta name='viewport' content='with=device-width,init-scale=1'/>\
         <link integrity='"bs_css_hash"' crossorigin='anonymous' \
           rel='stylesheet' href='"bs_css_url"'/>\
-        <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.14.0-beta2/css/bootstrap-select.min.css'\ 
+        <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.14.0-beta2/css/bootstrap-select.min.css' \
           integrity='sha512-mR/b5Y7FRsKqrYZou7uysnOdCIJib/7r5QeJMFvLNHNhtye3xJp1TdJVPLtetkukFn227nKpXD9OjUc09lx97Q==' \
           crossorigin='anonymous'/>\
         <script src='"bs_script_url"' integrity='"bs_script_hash"' \
           crossorigin='anonymous'></script>\
         <script src='scripts/modal.js'></script>\
         <script src='https://code.jquery.com/jquery-3.6.0.min.js' \
-          integrity='sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=' \ 
+          integrity='sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=' \
           crossorigin='anonymous'></script>
         <script src='https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.14.0-beta2/js/bootstrap-select.min.js' \
         integrity='sha512-FHZVRMUW9FsXobt+ONiix6Z0tIkxvQfxtCSirkKc5Sb4TKHmqq1dZa8DphF0XqKb3ldLu/wgMa8mT6uXiLlRlw==' \
@@ -173,7 +173,7 @@ let pagination ~current_uri ~limit ~page ~total =
     |> Uri.to_string
   in
   let prev_or_next_link ~symbol ~page ~is_prev =
-    let page, disabled = 
+    let page, disabled =
       if is_prev && page > 0 then
         (page - 1, "")
       else if not is_prev && page < number_of_pages then
@@ -191,7 +191,7 @@ let pagination ~current_uri ~limit ~page ~total =
     "]
   in
   let page_link ~is_activated page =
-    let params = 
+    let params =
       if is_activated then ["active"]
       else []
     in
@@ -203,7 +203,7 @@ let pagination ~current_uri ~limit ~page ~total =
       </li>\
     "]
   in
-  let ellipsis = 
+  let ellipsis =
     [%html "\
       <li class='page-item disabled'>\
         <a class='page-link'>...</a>\
@@ -211,13 +211,13 @@ let pagination ~current_uri ~limit ~page ~total =
     "]
   in
   let links =
-    let lst = 
+    let lst =
       ref [prev_or_next_link ~symbol:"❱" ~page ~is_prev:false]
     in
     (* TODO: clean this code. *)
     for i = number_of_pages downto 0 do
       let is_activated = i = page in
-      if (((i = 1 && page <> 0) || (i = number_of_pages-1 
+      if (((i = 1 && page <> 0) || (i = number_of_pages-1
         && page <> number_of_pages)) && not is_activated) then
         lst := ellipsis :: !lst
       else if i = 0 || abs(i - page) < 2 || i = number_of_pages then
@@ -226,13 +226,13 @@ let pagination ~current_uri ~limit ~page ~total =
     lst := prev_or_next_link ~symbol:"❰" ~page ~is_prev:true :: !lst;
     !lst
   in
-  let info = 
+  let info =
     let offset = page * limit + 1 in
     let last =
       let n = offset + limit - 1 in
       if n < total then n else total
     in
-    Format.sprintf "%i-%i of %i" 
+    Format.sprintf "%i-%i of %i"
     offset
     last
     total
@@ -255,10 +255,10 @@ module Selector = struct
     | Placeholder of string
     | None
 
-  let make ~id ~label ?(default_option=None) ?(multiple=false) options request = 
+  let make ~id ~label ?(default_option=None) ?(multiple=false) options request =
     let currents = Misc.look_up_get_params request id in
     let options = List.map (fun (key, value) ->
-      let attributes = 
+      let attributes =
         if List.mem key currents then
           Html.[a_value value; a_selected ()]
         else
@@ -329,7 +329,7 @@ let button ?(disabled=false) ~ty ~cla ~formaction content =
 
 let checkbox ?(checked=false) ?(cla=[]) id =
   let open Tyxml.Html in
-  let checked_attribut = 
+  let checked_attribut =
     if checked then [a_checked ()] else []
   in
   input ~a:(checked_attribut @
@@ -371,15 +371,15 @@ let benchpress_form request ~is_running provers =
 module Rounds_list : sig
   val table : (Round.t, Error.t) result list -> [> Html_types.tablex] Tyxml.Html.elt
   val action_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
-end = struct 
-  let format_status (round : Round.t) = 
+end = struct
+  let format_status (round : Round.t) =
     match round with
     | Pending _ -> Html.txt "Pending"
     | Running _ -> Html.txt "Running"
     | Done {summary; _} ->
         let url = "round/" ^ summary.uuid in
         Html.(a ~a:[a_href url] [txt "Done"])
- 
+
   let format_prover (round : Round.t) =
     let prover = Round.prover round in
     Html.txt @@ Format.asprintf "%a" Helper.pp_prover prover
@@ -390,24 +390,24 @@ end = struct
       | Pending {pending_since; _} -> pending_since
       | Running {running_since; _} -> running_since
       | Done {done_since; _} -> done_since
-    in 
-    Fmt.str "since %a" Helper.pp_date date 
- 
+    in
+    Fmt.str "since %a" Helper.pp_date date
+
   let format_uuid (round : Round.t) =
     match round with
     | Pending _ | Running _ -> Html.txt ""
     | Done {summary; _} ->
         Html.txt summary.uuid
-  
+
   let format_result (round : Round.t) =
     match round with
     | Pending _ | Running _ -> Html.txt "Not yet"
     | Done {summary; _} ->
         let str = Format.sprintf "%i/%i" summary.ctr_suc_pbs summary.ctr_pbs in
         Html.txt str
- 
+
   let row ~number round =
-    match round with 
+    match round with
     | Ok (round : Round.t) -> begin
       let check_selector =
         match round with
@@ -426,7 +426,7 @@ end = struct
         </tr>\
       "]
     end
-    | Error _ -> 
+    | Error _ ->
       [%html "\
         <tr>\
           <th></th>\
@@ -460,11 +460,11 @@ end = struct
   let action_form request =
     action_form request ~actions:[("compare", "compare")]
 end
- 
+
 let render_rounds_list request ~is_running rounds provers =
   let open Rounds_list in
   let rounds_table = table rounds in
-  let navbar = header_navbar 
+  let navbar = header_navbar
     [benchpress_form request ~is_running provers; action_form request]
   in
   page_layout request ~subtitle:"Rounds" ~hcontent:[navbar] [rounds_table]
@@ -475,19 +475,19 @@ module Problems_list : sig
     Dream.request ->
     Models.Problem.t list ->
     [> Html_types.tablex] Tyxml.Html.elt
-  
+
   val action_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
   val filter_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
-end = struct 
+end = struct
   let row request ~number pb =
     let open Models.Problem in
     let uuid = Dream.param request "uuid" in
-    let pb_link = Format.sprintf 
+    let pb_link = Format.sprintf
       "/round/%s/problem/%s" uuid (Dream.to_base64url pb.file)
     in
     [%html "
       <tr>\
-        <th>\ 
+        <th>\
           " [check_selector ~number (Dream.to_base64url pb.file)] "\
         </th>\
         <td class='text-break'>\
@@ -511,7 +511,7 @@ end = struct
         </td>\
       </tr>\
     "]
-  
+
   let table request pbs =
     let rows =  List.mapi (fun i pb -> row request ~number:i pb) pbs in
     [%html "\
@@ -546,8 +546,8 @@ end = struct
   ]
 
   let filter_form request =
-    let checked = 
-      Misc.look_up_get_opt_param request "only_diff" 
+    let checked =
+      Misc.look_up_get_opt_param request "only_diff"
       |> Option.is_some
     in
     [%html "\
@@ -557,7 +557,7 @@ end = struct
         <label class='form-check-label' for='only_diff'>\
           Diff\
         </label>\
-        " [checkbox ~checked ~cla:["form-check-input"] 
+        " [checkbox ~checked ~cla:["form-check-input"]
             "only_diff"] "\
       </div>\
       <div class='p-2'>\
@@ -575,7 +575,7 @@ end = struct
      </div>\
      <div class='p-2'>\
       " [Selector.make ~multiple:true ~id:"res" ~label:"Result"
-          ~default_option:(Placeholder "") 
+          ~default_option:(Placeholder "")
           possible_results request]
       "\
      </div>\
@@ -584,7 +584,7 @@ end = struct
           ~default_option:(Placeholder "")
           possible_results request] "\
      </div>\
-     <div class='p-2'>\
+    <div class='p-2'>\
         <button class='btn btn-outline-success w-100' type='submit'>\
           Filter\
         </button>\
@@ -602,15 +602,15 @@ let render_round_detail request ~page ~total ~prover
   let current_uri = Dream.target request |> Uri.of_string in
   let table = table request pbs  in
   let (header_navbar, footer_navbar) = (
-      header_navbar ~info:(round_summary request ~prover) 
+      header_navbar ~info:(round_summary request ~prover)
         [ filter_form request; action_form request ]
     , footer_navbar [pagination ~current_uri ~limit:50 ~page ~total])
   in
   page_layout
     request
-    ~subtitle:"Round" 
-    ~hcontent:[header_navbar] 
-    ~fcontent:[footer_navbar] 
+    ~subtitle:"Round"
+    ~hcontent:[header_navbar]
+    ~fcontent:[footer_navbar]
     [table]
   |> Helper.html_to_string
 
@@ -664,7 +664,7 @@ let render_problem_trace request (pb : Models.Problem.t) =
       </div>\
     </div>\
   " in
-  page_layout request ~subtitle:"Problem trace" [content] 
+  page_layout request ~subtitle:"Problem trace" [content]
   |> Helper.html_to_string
 
 module Problem_diffs_list : sig
@@ -674,43 +674,54 @@ module Problem_diffs_list : sig
     prover_2:Models.Prover.t ->
     Models.Problem_diff.t list ->
     [> Html_types.tablex] Tyxml.Html.elt
-  
+
   val filter_form : Dream.request -> [> Html_types.form] Tyxml.Html.elt
 end = struct
-  let format_problem (pb : Models.Problem.t) =
+  let format_problem ~pos (pb : Models.Problem.t) =
     [%html "\
       <td>\
         " [Html.txt (Helper.string_of_errcode pb.errcode)] "\
       </td>\
       <td>\
-        " [Html.txt (Helper.string_of_float pb.rtime)] "\
+        " [Html.txt (
+          match pos with
+          | `Old -> Helper.string_of_float pb.rtime
+          | `New r -> Format.sprintf "%i%%" r
+        )] "\
       </td>\
       <td class='" [Helper.color_of_res pb.res] "'>\
         " [Html.txt (Helper.string_of_res pb.res)] "\
       </td>\
     "]
- 
-  let row ~number 
+
+  let row ~number
     ((problem1, problem2) : (Models.Problem.t * Models.Problem.t)) _request =
-    let pb_link = Format.sprintf 
+    let pb_link = Format.sprintf
       "/round//problem/%s" (Dream.to_base64url problem1.file)
+    in
+    let rel_timeout =
+      (problem1.rtime -. problem2.rtime) /. (problem1.rtime) *. 100.0
+      |> Float.round |> Float.to_int
     in
     [%html "
       <tr>\
-        <th>" [check_selector ~number (Dream.to_base64url problem1.file)] "</th>\
+        <th>"
+          [check_selector ~number (Dream.to_base64url problem1.file)]
+        "</th>\
         <td class='text-start text-break'>\
           <a href='"pb_link"'>" [Html.txt problem1.file] "</a>\
         </td>\
         <td class='" [Helper.color_of_res problem1.file_expect] "'>\
           " [Html.txt (Helper.string_of_res problem1.file_expect)] "\
         </td>\
-        " ((format_problem problem1) @ (format_problem problem2)) "
+        " ((format_problem ~pos:`Old problem1)
+          @ (format_problem ~pos:(`New rel_timeout) problem2)) "
       </tr>\
     "]
 
   let format_prover_header prover =
     Html.txt @@ Format.asprintf "Prover: %a" Helper.pp_prover prover
-  
+
   let table request ~prover_1 ~prover_2 pb_diffs =
     let rows =  List.mapi (fun i pb_diff ->
       row ~number:i pb_diff request
@@ -747,9 +758,13 @@ end = struct
     "]
 
   let filter_form request =
-    let checked = 
-      Misc.look_up_get_opt_param request "show_rtime_reg" 
+    let checked =
+      Misc.look_up_get_opt_param request "show_rtime_reg"
       |> Option.is_some
+    in
+    let threshold =
+      Misc.look_up_get_opt_param request "threshold"
+      |> Option.value ~default:"25"
     in
     [%html "\
     <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
@@ -758,13 +773,13 @@ end = struct
         <label class='form-check-label' for='show_rtime_reg'>\
           Show running time regression\
         </label>\
-        " [checkbox ~checked ~cla:["form-check-input"] 
+        " [checkbox ~checked ~cla:["form-check-input"]
             "show_rtime_reg"] "\
       </div>\
       <div class='p-2'>\
         " [Selector.make ~id:"kind_diff" ~label:"Kind"
           ~default_option:(Default_value {key="difference"; value="difference"})
-          [ ("improvement", "improvement"); 
+          [ ("improvement", "improvement");
             ("regression", "regression") ] request]
         "\
       </div>\
@@ -773,6 +788,16 @@ end = struct
           <label class='input-group-text' for='name'>Problem</label>\
           <input type='text' class='form-control' id='file' name='file' \
             placeholder='...'/>\
+        </div>\
+      </div>\
+      <div class='p-2'>\
+        <div class='input-group'>\
+          <label class='input-group-text' for='file'>\
+            Time threshold (in %)\
+          </label>\
+          <input type='number' class='form-control' style='width: 5em'
+            id='threshold' name='threshold' value='" threshold "'
+            step='1' min='0'/>\
         </div>\
       </div>\
       <div class='p-2'>\
@@ -791,7 +816,7 @@ let render_rounds_diff request ~page ~total ~prover_1 ~prover_2 pbs_diff =
       header_navbar [filter_form request]
     , footer_navbar [pagination ~current_uri ~limit:50 ~page ~total])
   in
-  page_layout 
+  page_layout
     request
     ~subtitle:"Difference"
     ~hcontent:[header_navbar]
