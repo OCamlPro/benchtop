@@ -20,7 +20,7 @@
  (description "A longer description")
  (depends
    ocaml
-   dune
+   (dune (<= 3.6.2))
    dune-site
    cmdliner
    fmt
