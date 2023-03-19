@@ -6,8 +6,8 @@ type t = {
 
 let ctx : t ref = ref {queue=Rounds_queue.empty}
 
-let init () = 
-  let* queue = Rounds_queue.make ~dir:Options.benchpress_share_dir in
+let init () =
+  let* queue = Rounds_queue.make ~dir:Options.share_dir in
   ctx := {queue};
   Lwt.return ()
 

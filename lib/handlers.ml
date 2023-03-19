@@ -146,7 +146,7 @@ let generate_bp_config ~binary =
   close_out ch;
   filename
 
-let handle_schedule_round ~j request =
+let handle_schedule_round request =
   let ctx = Context.get () in
   (Misc.look_up_post_param request "prover"
   >|? fun binary ->
@@ -157,7 +157,7 @@ let handle_schedule_round ~j request =
       "benchpress"
     ; "run"
     ; "-j"
-    ; string_of_int j
+    ; string_of_int (Options.number_of_jobs)
     ; "-c"
     ; config_path
     ; "-t"

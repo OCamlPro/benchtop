@@ -23,7 +23,7 @@ end = struct
     let handler = Lwt_process.open_process_none ~stdout:(`FD_move stdout_fd)
       ~stderr:(`FD_move stderr_fd) cmd in
     {handler; stdout; stderr}
-  
+
   let stop {handler; _} =
     handler#terminate;
     handler#status
@@ -33,7 +33,7 @@ end = struct
       | Running -> false
       | Exited _ -> true
 
-  let readall_and_close filename = 
+  let readall_and_close filename =
     let ch = open_in filename in
     let content = File.read_all ch in
     In_channel.close ch;
@@ -46,10 +46,10 @@ end = struct
         %s@,\
         Error output: @,\
         %s@,\
-      " 
+      "
       (readall_and_close stdout)
       (readall_and_close stderr)
-    else 
+    else
       Format.fprintf fmt "Output is not ready"
 end
 
@@ -84,9 +84,9 @@ let retrieve_info db_file =
     >|? List.hd
   in
   Done {
-    done_since = summary.running_at; 
-    db_file; 
-    summary; 
+    done_since = summary.running_at;
+    db_file;
+    summary;
     prover
   }
 
@@ -100,7 +100,7 @@ let run = function
       Dream.info (fun log -> log "Running %s" name);
       let* watcher = Lwt_inotify.create () in
       let+ _ =
-        Lwt_inotify.add_watch watcher Options.benchpress_share_dir
+        Lwt_inotify.add_watch watcher Options.share_dir
         [Inotify.S_Create]
       in
       Ok (Running {
@@ -117,18 +117,18 @@ let find_db_file =
     String.equal (Filename.extension file) ".sqlite"
   in
   fun inotify ->
-    Lwt_inotify.try_read inotify 
+    Lwt_inotify.try_read inotify
     >>= function
-      | Some (_, [Inotify.Create], _, Some file) when is_db file -> 
+      | Some (_, [Inotify.Create], _, Some file) when is_db file ->
           Lwt_result.return file
-      | _ -> Lwt_result.fail `Db_not_found 
+      | _ -> Lwt_result.fail `Db_not_found
 
 let update round =
   match round with
-  | Running {proc; watcher; _} -> 
+  | Running {proc; watcher; _} ->
       if Process.is_done proc then
         find_db_file watcher >>= function
-        | Ok db_file -> 
+        | Ok db_file ->
             Dream.debug (fun log -> log "Found the database %s" db_file);
             retrieve_info db_file
         | Error err ->
@@ -161,17 +161,17 @@ let summary = function
   | Pending _ | Running _ -> Lwt_result.fail `Not_done
 
 let compare =
-  let compare_time t1 t2 = 
+  let compare_time t1 t2 =
     let t1 = Unix.mktime t1 |> fst in
     let t2 = Unix.mktime t2 |> fst in
     Float.compare t1 t2
-  in 
+  in
   fun round1 round2 -> match round1, round2 with
-  | Pending _, Running _ 
-  | Running _, Done _ 
+  | Pending _, Running _
+  | Running _, Done _
   | Pending _, Done _ -> -1
-  | Running _, Pending _ 
-  | Done _, Running _ 
+  | Running _, Pending _
+  | Done _, Running _
   | Done _, Pending _ -> 1
   | Pending {pending_since=t1; _}, Pending {pending_since=t2; _} ->
       compare_time t1 t2
@@ -193,7 +193,7 @@ let problems ?(only_diff=false) ?file ~res ~file_expect ~errcode ~page =
         Models.retrieve ~db_file
         (Models.Problem.select ?file ~res ~file_expect
           ~errcode ~only_diff ~page)
-    | Pending _ | Running _ -> 
+    | Pending _ | Running _ ->
         Lwt_result.fail `Not_done
 
 let count ?(only_diff=false) ?file ~res ~file_expect ~errcode =
@@ -202,7 +202,7 @@ let count ?(only_diff=false) ?file ~res ~file_expect ~errcode =
         Models.retrieve ~db_file
         (Models.Problem.count ?file ~res ~file_expect
           ~errcode ~only_diff)
-    | Pending _ | Running _ -> 
+    | Pending _ | Running _ ->
         Lwt_result.fail `Not_done
 
 

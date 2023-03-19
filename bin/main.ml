@@ -29,12 +29,7 @@ let rec update_context () =
   let* _ = Context.update () in
   update_context ()
 
-let server log_level interface port number_of_jobs =
-  let log_level = Option.value log_level ~default:`Info in
-  let interface = Option.value interface ~default:"localhost" in
-  let port = Option.value port ~default:8080 in
-  let j = Option.value number_of_jobs ~default:Options.number_of_jobs in
-  Dream.initialize_log ~level:log_level ();
+let server log_level interface port=
   Dream.(serve ~interface ~port
   @@ logger
   @@ memory_sessions
@@ -52,7 +47,7 @@ let server log_level interface port number_of_jobs =
       ; post "/action" @@ Handlers.handle_round_action_dispatcher
       ]
     ; scope "/benchpress" [origin_referrer_check] [
-        post "/schedule" @@ Handlers.handle_schedule_round ~j
+        post "/schedule" @@ Handlers.handle_schedule_round
       ; post "/stop" @@ Handlers.handle_stop_round
     ]
     ; scope "/problems" [origin_referrer_check] [
@@ -60,11 +55,14 @@ let server log_level interface port number_of_jobs =
     ]
   ])
 
-let main log_level interface port number_of_jobs =
+let main log_level interface port number_of_jobs share_dir =
+  Dream.initialize_log ~level:log_level ();
+  Options.set_number_of_jobs number_of_jobs;
+  Options.set_share_dir share_dir;
   Lwt_main.run (
     let* _ = Context.init () in
     Lwt.async (update_context);
-    server log_level interface port number_of_jobs)
+    server log_level interface port)
 
 module Cmd = struct
   open Cmdliner
@@ -77,23 +75,28 @@ module Cmd = struct
       ; "error", `Error
       ; "debug", `Debug
     ] in
-    Arg.(value & opt (some level) ~vopt:(Some `Info) None
+    Arg.(value & opt level `Info
       & info ["l"; "log"] ~docv:"LOG_LEVEL" ~doc)
 
   let interface =
     let doc = "Specify the listen address." in
-    Arg.(value & opt (some string) None
+    Arg.(value & opt string "localhost"
       & info ["i"; "interface"] ~docv:"INTERFACE" ~doc)
 
   let port =
     let doc = "Specify the listen port." in
-    Arg.(value & opt (some int) None
+    Arg.(value & opt int 8080
       & info ["p"; "port"] ~docv:"PORT" ~doc)
 
   let number_of_jobs =
     let doc = "Set the number of jobs." in
-    Arg.(value & opt (some int) None
+    Arg.(value & opt int Options.number_of_jobs
       & info ["j"] ~docv:"NUMBER" ~doc)
+
+  let share_dir =
+    let doc = "Set the share dir." in
+    Arg.(value & opt string Options.share_dir
+      & info ["d"] ~docv:"SHARE" ~doc)
 
   let cmd =
     let open Cmdliner in
@@ -105,7 +108,7 @@ module Cmd = struct
     ] in
     let info = Cmd.info "benchtop" ~version:"dev" ~doc ~man in
     Cmd.v info Term.(const main $ log_level $ interface $ port
-      $ number_of_jobs)
+      $ number_of_jobs $ share_dir)
 
   let main () = exit (Cmd.eval cmd)
 end
