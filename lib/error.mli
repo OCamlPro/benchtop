@@ -16,8 +16,10 @@ type form =
   | `Many_tokens of (string * string) list
   | `Wrong_content_type ]
 
+
 type param = [ form | `Key_not_found of string ]
 type misc = [ `Cannot_convert_to_base64 | `Unknown_error of string ]
+
 type t = [ sql | process | round | param | form | misc ]
 
 val pp : [< t ] Fmt.t

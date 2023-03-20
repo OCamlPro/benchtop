@@ -18,13 +18,21 @@ type form =
 
 type param = [ form | `Key_not_found of string ]
 type misc = [ `Cannot_convert_to_base64 | `Unknown_error of string ]
+
 type t = [ sql | round | param | misc ]
+
+let pp_error_code fmt =
+  let open Unix in
+  function
+  | WEXITED rc -> Format.fprintf fmt "WEXITED %i" rc
+  | WSIGNALED rc -> Format.fprintf fmt "WSIGNALED %i" rc
+  | WSTOPPED rc -> Format.fprintf fmt "WSTOPPED %i" rc
 
 let pp_process fmt = function
   | `Is_running -> Format.fprintf fmt "The processus is still running"
   | `Stopped rc ->
       Format.fprintf fmt "The processus has been stopped with the error code %a"
-        Misc.pp_error_code rc
+        pp_error_code rc
   | `Db_not_found -> Format.fprintf fmt "The database has not been found"
 
 let pp_round fmt = function

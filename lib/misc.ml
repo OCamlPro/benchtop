@@ -8,13 +8,6 @@ let pp_to_string pp el =
   pp Format.str_formatter el;
   Format.flush_str_formatter ()
 
-let pp_error_code fmt =
-  let open Unix in
-  function
-  | WEXITED rc -> Format.fprintf fmt "WEXITED %i" rc
-  | WSIGNALED rc -> Format.fprintf fmt "WSIGNALED %i" rc
-  | WSTOPPED rc -> Format.fprintf fmt "WSTOPPED %i" rc
-
 let sprintf_list pp lst =
   let buf = Buffer.create 200 in
   let fmt = Format.formatter_of_buffer buf in
