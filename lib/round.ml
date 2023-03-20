@@ -9,29 +9,29 @@ module Process : sig
   val pp_output : t Fmt.t
 end = struct
   type t = {
-    handler: Lwt_process.process_none;
-    stdout: string;
-    stderr: string;
+    handler : Lwt_process.process_none;
+    stdout : string;
+    stderr : string;
   }
 
   let run ~cmd =
     let name = Format.sprintf "%s_" (fst cmd) in
-    let (stdout, stdout_ch) = Filename.open_temp_file name ".stdout" in
+    let stdout, stdout_ch = Filename.open_temp_file name ".stdout" in
     let stdout_fd = Unix.descr_of_out_channel stdout_ch in
-    let (stderr, stderr_ch) = Filename.open_temp_file name ".stderr" in
+    let stderr, stderr_ch = Filename.open_temp_file name ".stderr" in
     let stderr_fd = Unix.descr_of_out_channel stderr_ch in
-    let handler = Lwt_process.open_process_none ~stdout:(`FD_move stdout_fd)
-      ~stderr:(`FD_move stderr_fd) cmd in
-    {handler; stdout; stderr}
+    let handler =
+      Lwt_process.open_process_none ~stdout:(`FD_move stdout_fd)
+        ~stderr:(`FD_move stderr_fd) cmd
+    in
+    { handler; stdout; stderr }
 
-  let stop {handler; _} =
+  let stop { handler; _ } =
     handler#terminate;
     handler#status
 
-  let is_done {handler; _} =
-    match handler#state with
-      | Running -> false
-      | Exited _ -> true
+  let is_done { handler; _ } =
+    match handler#state with Running -> false | Exited _ -> true
 
   let readall_and_close filename =
     let ch = open_in filename in
@@ -39,125 +39,99 @@ end = struct
     In_channel.close ch;
     content
 
-  let pp_output fmt ({stdout; stderr; _} as round) =
+  let pp_output fmt ({ stdout; stderr; _ } as round) =
     if is_done round then
-      Format.fprintf fmt "\
-        Standard output: @,\
-        %s@,\
-        Error output: @,\
-        %s@,\
-      "
-      (readall_and_close stdout)
-      (readall_and_close stderr)
-    else
-      Format.fprintf fmt "Output is not ready"
+      Format.fprintf fmt "Standard output: @,%s@,Error output: @,%s@,"
+        (readall_and_close stdout) (readall_and_close stderr)
+    else Format.fprintf fmt "Output is not ready"
 end
 
 type t =
   | Pending of {
-    pending_since: Unix.tm;
-    cmd: Lwt_process.command;
-    prover: Models.Prover.t
-  }
+      pending_since : Unix.tm;
+      cmd : Lwt_process.command;
+      prover : Models.Prover.t;
+    }
   | Running of {
-    running_since: Unix.tm;
-    watcher: Lwt_inotify.t;
-    proc: Process.t;
-    prover: Models.Prover.t
-  }
+      running_since : Unix.tm;
+      watcher : Lwt_inotify.t;
+      proc : Process.t;
+      prover : Models.Prover.t;
+    }
   | Done of {
-    done_since: Unix.tm;
-    db_file: string;
-    summary: Models.Round_summary.t;
-    prover: Models.Prover.t
-  }
+      done_since : Unix.tm;
+      db_file : string;
+      summary : Models.Round_summary.t;
+      prover : Models.Prover.t;
+    }
 
-let make ~cmd ~prover = Pending {pending_since = Misc.now(); cmd; prover}
+let make ~cmd ~prover = Pending { pending_since = Misc.now (); cmd; prover }
 
 let retrieve_info db_file =
-  let+? summary =
-    Models.retrieve ~db_file
-      (Models.Round_summary.retrieve ())
+  let+? summary = Models.retrieve ~db_file (Models.Round_summary.retrieve ())
   and+? prover =
-    Models.retrieve ~db_file
-      (Models.Prover.select ~name:None ~version:None)
+    Models.retrieve ~db_file (Models.Prover.select ~name:None ~version:None)
     >|? List.hd
   in
-  Done {
-    done_since = summary.running_at;
-    db_file;
-    summary;
-    prover
-  }
+  Done { done_since = summary.running_at; db_file; summary; prover }
 
 let resurect db_file = retrieve_info db_file
 
 let run = function
-  | Pending {cmd; prover; _} -> begin
+  | Pending { cmd; prover; _ } ->
       let name = fst cmd in
       Dream.info (fun log -> log "Ready to run %s" name);
       let proc = Process.run ~cmd in
       Dream.info (fun log -> log "Running %s" name);
       let* watcher = Lwt_inotify.create () in
       let+ _ =
-        Lwt_inotify.add_watch watcher Options.share_dir
-        [Inotify.S_Create]
+        Lwt_inotify.add_watch watcher Options.share_dir [ Inotify.S_Create ]
       in
-      Ok (Running {
-        running_since = Misc.now ();
-        watcher;
-        proc;
-        prover
-      })
-    end
+      Ok (Running { running_since = Misc.now (); watcher; proc; prover })
   | Running _ | Done _ -> Lwt_result.fail `Is_running
 
 let find_db_file =
-  let is_db file =
-    String.equal (Filename.extension file) ".sqlite"
-  in
+  let is_db file = String.equal (Filename.extension file) ".sqlite" in
   fun inotify ->
-    Lwt_inotify.try_read inotify
-    >>= function
-      | Some (_, [Inotify.Create], _, Some file) when is_db file ->
-          Lwt_result.return file
-      | _ -> Lwt_result.fail `Db_not_found
+    Lwt_inotify.try_read inotify >>= function
+    | Some (_, [ Inotify.Create ], _, Some file) when is_db file ->
+        Lwt_result.return file
+    | _ -> Lwt_result.fail `Db_not_found
 
 let update round =
   match round with
-  | Running {proc; watcher; _} ->
-      if Process.is_done proc then
+  | Running { proc; watcher; _ } ->
+      if Process.is_done proc then (
         find_db_file watcher >>= function
         | Ok db_file ->
             Dream.debug (fun log -> log "Found the database %s" db_file);
             retrieve_info db_file
         | Error err ->
             Dream.debug (fun log -> log "%a" Process.pp_output proc);
-            Lwt_result.fail err
-
+            Lwt_result.fail err)
       else Lwt_result.return round
   | Pending _ | Done _ -> Lwt_result.return round
 
 let stop = function
-  | Running {proc; _} when not @@ Process.is_done proc ->
+  | Running { proc; _ } when not @@ Process.is_done proc ->
       let+ rc = Process.stop proc in
       Error (`Stopped rc)
   | (Pending _ | Running _ | Done _) as round -> Lwt_result.return round
 
 let is_done = function
   | Pending _ -> false
-  | Running {proc; _} -> Process.is_done proc
+  | Running { proc; _ } -> Process.is_done proc
   | Done _ -> true
 
 let db_file = function
-  | Done {db_file; _} -> Lwt_result.return db_file
+  | Done { db_file; _ } -> Lwt_result.return db_file
   | Pending _ | Running _ -> Lwt_result.fail `Not_done
 
 let prover = function
-  | Pending {prover; _} | Running {prover; _} | Done {prover; _} -> prover
+  | Pending { prover; _ } | Running { prover; _ } | Done { prover; _ } -> prover
 
 let summary = function
-  | Done {summary; _} -> Lwt_result.return summary
+  | Done { summary; _ } -> Lwt_result.return summary
   | Pending _ | Running _ -> Lwt_result.fail `Not_done
 
 let compare =
@@ -166,43 +140,31 @@ let compare =
     let t2 = Unix.mktime t2 |> fst in
     Float.compare t1 t2
   in
-  fun round1 round2 -> match round1, round2 with
-  | Pending _, Running _
-  | Running _, Done _
-  | Pending _, Done _ -> -1
-  | Running _, Pending _
-  | Done _, Running _
-  | Done _, Pending _ -> 1
-  | Pending {pending_since=t1; _}, Pending {pending_since=t2; _} ->
-      compare_time t1 t2
-  | Running {running_since=t1; _}, Running {running_since=t2; _} ->
-      compare_time t1 t2
-  | Done {done_since=t1; _}, Done {done_since=t2; _} ->
-      compare_time t1 t2
+  fun round1 round2 ->
+    match (round1, round2) with
+    | Pending _, Running _ | Running _, Done _ | Pending _, Done _ -> -1
+    | Running _, Pending _ | Done _, Running _ | Done _, Pending _ -> 1
+    | Pending { pending_since = t1; _ }, Pending { pending_since = t2; _ } ->
+        compare_time t1 t2
+    | Running { running_since = t1; _ }, Running { running_since = t2; _ } ->
+        compare_time t1 t2
+    | Done { done_since = t1; _ }, Done { done_since = t2; _ } ->
+        compare_time t1 t2
 
 let problem ~name = function
-  | Done {db_file; _} ->
+  | Done { db_file; _ } ->
+      Models.retrieve ~db_file (Models.Problem.select_one ~name)
+  | Pending _ | Running _ -> Lwt_result.fail `Not_done
+
+let problems ?(only_diff = false) ?file ~res ~file_expect ~errcode ~page =
+  function
+  | Done { db_file; _ } ->
       Models.retrieve ~db_file
-      (Models.Problem.select_one ~name)
-  | Pending _ | Running _ ->
-      Lwt_result.fail `Not_done
+        (Models.Problem.select ?file ~res ~file_expect ~errcode ~only_diff ~page)
+  | Pending _ | Running _ -> Lwt_result.fail `Not_done
 
-let problems ?(only_diff=false) ?file ~res ~file_expect ~errcode ~page =
-  function
-    | Done {db_file; _} ->
-        Models.retrieve ~db_file
-        (Models.Problem.select ?file ~res ~file_expect
-          ~errcode ~only_diff ~page)
-    | Pending _ | Running _ ->
-        Lwt_result.fail `Not_done
-
-let count ?(only_diff=false) ?file ~res ~file_expect ~errcode =
-  function
-    | Done {db_file; _} ->
-        Models.retrieve ~db_file
-        (Models.Problem.count ?file ~res ~file_expect
-          ~errcode ~only_diff)
-    | Pending _ | Running _ ->
-        Lwt_result.fail `Not_done
-
-
+let count ?(only_diff = false) ?file ~res ~file_expect ~errcode = function
+  | Done { db_file; _ } ->
+      Models.retrieve ~db_file
+        (Models.Problem.count ?file ~res ~file_expect ~errcode ~only_diff)
+  | Pending _ | Running _ -> Lwt_result.fail `Not_done

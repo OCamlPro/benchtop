@@ -14,10 +14,7 @@ val render_round_detail :
   Models.Problem.t list ->
   string
 
-val render_problem_trace :
-  Dream.request ->
-  Models.Problem.t ->
-  string
+val render_problem_trace : Dream.request -> Models.Problem.t -> string
 
 val render_rounds_diff :
   Dream.request ->

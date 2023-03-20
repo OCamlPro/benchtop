@@ -1,31 +1,32 @@
 (library
  (name benchtop)
  (modules
-   misc
-   location
-   views
-   error
-   handlers
-   context
-   syntax
-   file
-   models
-   round
-   rounds_queue
-   options)
+  misc
+  location
+  views
+  error
+  handlers
+  context
+  syntax
+  file
+  models
+  round
+  rounds_queue
+  options)
  (libraries
-   dune-site
-   caqti
-   caqti-lwt
-   caqti-driver-sqlite3
-   dream
-   lwt
-   tyxml
-   fmt
-   inotify.lwt
-   ppx_rapper_lwt)
- (preprocess (pps tyxml-ppx ppx_rapper)))
+  dune-site
+  caqti
+  caqti-lwt
+  caqti-driver-sqlite3
+  dream
+  lwt
+  tyxml
+  fmt
+  inotify.lwt
+  ppx_rapper_lwt)
+ (preprocess
+  (pps tyxml-ppx ppx_rapper)))
 
 (generate_sites_module
-  (module location)
-  (sites benchtop))
+ (module location)
+ (sites benchtop))

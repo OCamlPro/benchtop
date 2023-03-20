@@ -1,3 +1,5 @@
 (install
-  (section (site (benchtop scripts)))
-  (files modal.js))
+ (section
+  (site
+   (benchtop scripts)))
+ (files modal.js))
