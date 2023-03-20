@@ -52,10 +52,25 @@ let server interface port =
              [ get ":uuid" @@ Handlers.handle_problems_list ];
          ])
 
+let check_share_dir () =
+  try
+    if not @@ Sys.is_directory Options.share_dir then begin
+      Dream.error (fun log -> log "The file %s exists but is not a directory."
+        Options.share_dir);
+      exit (-1)
+    end
+  with
+  Sys_error _ ->
+    begin
+      Sys.mkdir Options.share_dir 0o755;
+      Sys.mkdir Options.binaries_dir 0o755
+    end
+
 let main log_level interface port number_of_jobs share_dir =
   Dream.initialize_log ~level:log_level ();
   Options.set_number_of_jobs number_of_jobs;
   Options.set_share_dir share_dir;
+  check_share_dir ();
   Lwt_main.run
     (let* _ = Context.init () in
      Lwt.async update_context;
