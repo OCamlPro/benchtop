@@ -7,10 +7,6 @@ let set_share_dir, share_dir, binaries_dir =
     !share_dir,
     Filename.concat !share_dir "binaries" )
 
-let tests_dir =
-  let home_path = Unix.getenv "HOME" in
-  Filename.concat home_path "tests"
-
 let set_tests_dir, tests_dir =
   let tests_dir =
     let home_path = Unix.getenv "HOME" in

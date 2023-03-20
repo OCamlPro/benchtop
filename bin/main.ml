@@ -27,7 +27,7 @@ let rec update_context () =
   let* _ = Context.update () in
   update_context ()
 
-let server log_level interface port =
+let server interface port =
   Dream.(
     serve ~interface ~port @@ logger @@ memory_sessions @@ header_logger
     @@ flash
@@ -59,7 +59,7 @@ let main log_level interface port number_of_jobs share_dir =
   Lwt_main.run
     (let* _ = Context.init () in
      Lwt.async update_context;
-     server log_level interface port)
+     server interface port)
 
 module Cmd = struct
   open Cmdliner
