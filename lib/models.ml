@@ -83,6 +83,11 @@ module Time = struct
     in
     let decode tm = Ok (Unix.localtime tm) in
     Caqti_type.(custom ~encode ~decode float)
+
+  let pp fmt tm =
+    Format.fprintf fmt "%f" (Unix.mktime tm |> fst)
+
+  let show = Fmt.str "%a" pp
 end
 
 module Kind_diff = struct
@@ -129,12 +134,20 @@ module Prover = struct
     |> List.map (fun filename -> { name = filename; version = "" })
 
   let of_binary_name binary =
+    (* TODO: remove the alt-ergo string here. *)
     let regexp = Str.regexp {|alt-ergo-\([a-zA-Z0-9_\-]+\)|} in
     let version =
       if Str.string_match regexp binary 0 then Str.matched_group 1 binary
       else ""
     in
     { name = "alt-ergo"; version }
+
+  let pp fmt prover =
+    if String.length prover.version > 0 then
+      Format.fprintf fmt "%s: %s" prover.name prover.version
+    else Format.fprintf fmt "%s" prover.name
+
+  let show = Fmt.str "%a" pp
 end
 
 let pp_quote pp fmt = Format.fprintf fmt "'%a'" pp

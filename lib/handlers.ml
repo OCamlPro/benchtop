@@ -40,7 +40,7 @@ let handle_rounds_list request =
     let provers = Models.Prover.readdir ~dir:Options.binaries_dir in
     Ok (Views.render_rounds_list request ~is_running rounds provers)
   in
-  Lwt.bind view (Helper.view_or_error_to_response request)
+  view >>= Helper.view_or_error_to_response request
 
 let handle_round_detail request =
   let view =
@@ -67,7 +67,6 @@ let handle_round_detail request =
     let*? round =
       Misc.look_up_param request "uuid" >>? Rounds_queue.find_by_uuid ctx.queue
     in
-    let prover = Round.prover round in
     let*? summary = Round.summary round in
     let*? total =
       Round.count ?file ~res ~file_expect ~errcode ~only_diff round
@@ -75,84 +74,34 @@ let handle_round_detail request =
     let+? pbs =
       Round.problems ?file ~res ~file_expect ~errcode ~only_diff ~page round
     in
-    Views.render_round_detail request ~page ~total ~prover summary pbs
+    Views.render_round_detail request ~page ~total ~prover:round.prover summary pbs
   in
   view >>= Helper.view_or_error_to_response request
 
 let handle_problem_trace request =
   let view =
-    let ctx = Context.get () in
-    let*? uuid = Misc.look_up_param request "uuid"
-    and*? name =
-      let*? name = Misc.look_up_param request "problem" in
-      Lwt.return @@ Misc.from_base64url name
+    let*? pb =
+      let ctx = Context.get () in
+      let*? uuid = Misc.look_up_param request "uuid"
+      and*? name =
+        let*? name = Misc.look_up_param request "problem" in
+        Lwt.return @@ Misc.from_base64url name
+      in
+      Rounds_queue.find_by_uuid ctx.queue uuid
+      >>? Round.problem ~name
     in
-    Rounds_queue.find_by_uuid ctx.queue uuid
-    >>? Round.problem ~name
-    >|? Views.render_problem_trace request
+    let+? file_content =
+        Lwt_result.return @@ File.read_all (open_in pb.file)
+    in
+    Views.render_problem_trace request ~file_content pb
   in
   view >>= Helper.view_or_error_to_response request
-
-let pp_bp_config ~binary fmt () =
-  let binary_path = Filename.concat Options.binaries_dir binary in
-  let prover = Models.Prover.of_binary_name binary in
-  Format.fprintf fmt
-    ("\
-  (import-prelude false)@\n\
-  @[<v 2>(prover@ \
-    @[<v 2>(name ae-read-status)@ \
-      @[<v 2>(cmd \"zgrep :status $file\")@ \
-        @[<v 2>(unknown \":status unknown\")@ \
-          @[<v 2>(unknown \"\")@ \
-            @[<v 2>(sat \":status sat\")@ \
-              @[<v 2>(unsat \":status unsat|:status valid\"))@]@]@]@]@]@]@]@]@\n\
-  @[<v 2>(dir@ \
-    @[<v 2>(path \"%s\")@ \
-      @[<v 2>(pattern \".*.ae|.*.smt2|.*.zip\")@ \
-        @[<v 2>(expect (run ae-read-status)))@]@]@]@]@\n\
-  @[<v 2>(prover@ \
-    @[<v 2>(name %s)@ \
-      @[<v 2>(version %s)@ \
-        @[<v 2>(cmd \"%s --timelimit=$timeout $file\")@ \
-          @[<v 2>(sat \"^sat\")@ \
-            @[<v 2>(unsat \"Valid|(^unsat)\")@ \
-              @[<v 2>(unknown \"(I Don't Know)|(^unsat)\")@ \
-                @[<v 2>(timeout \"^timeout\"))@]@]@]@]@]@]@]@]@]@."
-                [@ocamlformat "disable"])
-    Options.tests_dir prover.name prover.version binary_path
-
-let generate_bp_config ~binary =
-  let filename, ch = Filename.open_temp_file "benchpress_" ".sexp" in
-  let fmt = Format.formatter_of_out_channel ch in
-  pp_bp_config ~binary fmt ();
-  Dream.debug (fun log -> log "%a" (pp_bp_config ~binary) ());
-  close_out ch;
-  filename
 
 let handle_schedule_round request =
   let ctx = Context.get () in
   Misc.look_up_post_param request "prover"
   >|? (fun binary ->
-        let prover = Models.Prover.of_binary_name binary in
-        let config_path = generate_bp_config ~binary in
-        let new_round =
-          Round.make ~prover
-            ~cmd:
-              ( "benchpress",
-                [|
-                  "benchpress";
-                  "run";
-                  "-j";
-                  string_of_int Options.number_of_jobs;
-                  "-c";
-                  config_path;
-                  "-t";
-                  string_of_int Options.prover_timeout;
-                  "-p";
-                  "alt-ergo";
-                  Options.tests_dir;
-                |] )
-        in
+        let new_round = Round.make ~binary in
         Ok ({ queue = Rounds_queue.push new_round ctx.queue } |> Context.set))
   >>= Helper.redirect request
 
@@ -202,8 +151,8 @@ let handle_rounds_diff request =
     and*? round2 =
       Misc.look_up_param request "uuid2" >>? Rounds_queue.find_by_uuid ctx.queue
     in
-    let*? db_file1 = Round.db_file round1 in
-    let*? db_file2 = Round.db_file round2 in
+    let db_file1 = Round.db_file round1 in
+    let db_file2 = Round.db_file round2 in
     let*? total =
       Models.(
         retrieve ~db_file:db_file1 ~db_attached:db_file2
@@ -213,7 +162,7 @@ let handle_rounds_diff request =
       retrieve ~db_file:db_file1 ~db_attached:db_file2
         (Problem_diff.select ~file ~kind_diff ~show_rtime_reg ~page ~threshold))
     >|? Views.render_rounds_diff request ~page ~total
-          ~prover_1:(Round.prover round1) ~prover_2:(Round.prover round2)
+          ~prover_1:(round1.prover) ~prover_2:(round2.prover)
   in
   view >>= Helper.view_or_error_to_response request
 

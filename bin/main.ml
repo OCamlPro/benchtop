@@ -63,7 +63,8 @@ let check_share_dir () =
   Sys_error _ ->
     begin
       Sys.mkdir Options.share_dir 0o755;
-      Sys.mkdir Options.binaries_dir 0o755
+      Sys.mkdir Options.binaries_dir 0o755;
+      Sys.mkdir Options.db_dir 0o755
     end
 
 let main log_level interface port number_of_jobs share_dir =

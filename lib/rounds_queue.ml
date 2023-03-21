@@ -22,15 +22,17 @@ let rec update { lst; pos } =
   let new_pos = ref pos in
   let lst =
     List.mapi
-      (fun j round ->
+      (fun j (round : (Round.t, _) result) ->
         match (pos, round) with
-        | Some i, Ok (Pending _ as round : Round.t) when i = j ->
-            Round.run round
-        | Some i, Ok (Done _ as round : Round.t) when i = j ->
-            new_pos := if j > 0 then Some (j - 1) else None;
-            Lwt_result.return round
-        | Some i, Ok (Running _ as round : Round.t) when i = j ->
-            Round.update round
+        | Some i, Ok round when i = j ->
+            begin match round.status with
+              | Pending _ -> Round.run round
+              | Done _ ->
+                new_pos := if j > 0 then Some (j - 1) else None;
+                Lwt_result.return round
+              | Running _ ->
+                Round.update round
+            end
         | Some i, Error err when i = j ->
             new_pos := if j > 0 then Some (j - 1) else None;
             Lwt_result.fail err
@@ -52,7 +54,7 @@ let find_by_uuid { lst; _ } uuid =
   in
   List.find_opt
     (fun (round : Round.t) ->
-      match round with
+      match round.status with
       | Done { summary; _ } -> String.equal uuid summary.uuid
       | Pending _ | Running _ -> false)
     lst

@@ -9,7 +9,6 @@ module Helper : sig
   val string_of_errcode : Models.Errcode.t -> string
   val string_of_res : Models.Res.t -> string
   val color_of_res : Models.Res.t -> string
-  val pp_prover : Models.Prover.t Fmt.t
   val display_error : Dream.request -> [> Html_types.div ] Tyxml.Html.elt list
 end = struct
   let display_error request =
@@ -63,12 +62,6 @@ end = struct
     | Unsat -> "text-primary"
     | Unknown | Timeout -> "text-orange"
     | Error | Unexpected _ -> "text-danger"
-
-  (* TODO: move this function in Models module. *)
-  let pp_prover fmt (prover : Models.Prover.t) =
-    if String.length prover.version > 0 then
-      Format.fprintf fmt "%s: %s" prover.name prover.version
-    else Format.fprintf fmt "%s" prover.name
 end
 
 let header_navbar ?(info = []) content =
@@ -332,7 +325,7 @@ let benchpress_form request ~is_running provers =
   let provers =
     List.map
       (fun prover ->
-        let key = Format.asprintf "%a" Helper.pp_prover prover in
+        let key = Format.asprintf "%a" Models.Prover.pp prover in
         let value = key in
         (key, value))
       provers
@@ -371,7 +364,7 @@ module Rounds_list : sig
   val action_form : Dream.request -> [> Html_types.form ] Tyxml.Html.elt
 end = struct
   let format_status (round : Round.t) =
-    match round with
+    match round.status with
     | Pending _ -> Html.txt "Pending"
     | Running _ -> Html.txt "Running"
     | Done { summary; _ } ->
@@ -379,12 +372,11 @@ end = struct
         Html.(a ~a:[ a_href url ] [ txt "Done" ])
 
   let format_prover (round : Round.t) =
-    let prover = Round.prover round in
-    Html.txt @@ Format.asprintf "%a" Helper.pp_prover prover
+    Html.txt @@ Format.asprintf "%a" Models.Prover.pp round.prover
 
   let format_date (round : Round.t) =
     let date =
-      match round with
+      match round.status with
       | Pending { pending_since; _ } -> pending_since
       | Running { running_since; _ } -> running_since
       | Done { done_since; _ } -> done_since
@@ -392,12 +384,12 @@ end = struct
     Fmt.str "since %a" Helper.pp_date date
 
   let format_uuid (round : Round.t) =
-    match round with
+    match round.status with
     | Pending _ | Running _ -> Html.txt ""
     | Done { summary; _ } -> Html.txt summary.uuid
 
   let format_result (round : Round.t) =
-    match round with
+    match round.status with
     | Pending _ | Running _ -> Html.txt "Not yet"
     | Done { summary; _ } ->
         let str = Format.sprintf "%i/%i" summary.ctr_suc_pbs summary.ctr_pbs in
@@ -407,7 +399,7 @@ end = struct
     match round with
     | Ok (round : Round.t) ->
         let check_selector =
-          match round with
+          match round.status with
           | Pending _ | Running _ -> []
           | Done { summary; _ } ->
               [ check_selector ~number (Dream.to_base64url summary.uuid) ]
@@ -422,12 +414,13 @@ end = struct
           <td class='text-center'>" [Html.txt (format_date round)] "</td>\
         </tr>\
       "] [@ocamlformat "disable"]
-    | Error _ ->
+    | Error err ->
         [%html "\
         <tr>\
           <th></th>\
           <td colspan='5'>\
             <span class='badge bg-danger'>Error</span>\
+            " [Html.txt (Error.show err)] "\
           </td>\
         </tr>\
       "] [@ocamlformat "disable"]
@@ -590,7 +583,7 @@ end = struct
 end
 
 let round_summary _request ~prover =
-  [ Html.txt @@ Format.asprintf "%a" Helper.pp_prover prover ]
+  [ Html.txt @@ Models.Prover.show prover ]
 
 let render_round_detail request ~page ~total ~prover
     (_summary : Models.Round_summary.t) pbs =
@@ -607,10 +600,8 @@ let render_round_detail request ~page ~total ~prover
     ~fcontent:[ footer_navbar ] [ table ]
   |> Helper.html_to_string
 
-let render_problem_trace request (pb : Models.Problem.t) =
+let render_problem_trace request ~file_content (pb : Models.Problem.t) =
   let header = Format.sprintf "Problem %s" (Filename.basename pb.file) in
-  (* BUG: we should recover if the file cannot be read. *)
-  let problem_content = File.read_all (open_in pb.file) in
   let%html content =
     "\
     <div class='container-fluid'>\
@@ -634,7 +625,7 @@ let render_problem_trace request (pb : Models.Problem.t) =
               <label for='problem' class='form-label'>Problem content</label>\
               <textarea class='form-control bg-light' id='problem' rows='20' \
               readonly>\
-                " (Html.txt problem_content) "\
+                " (Html.txt file_content) "\
               </textarea>\
             </div>\
             <div class='row'>\
@@ -715,7 +706,7 @@ end = struct
     "] [@ocamlformat "disable"]
 
   let format_prover_header prover =
-    Html.txt @@ Format.asprintf "Prover: %a" Helper.pp_prover prover
+    Html.txt @@ Models.Prover.show prover
 
   let table request ~prover_1 ~prover_2 pb_diffs =
     let rows =

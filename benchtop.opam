@@ -10,7 +10,7 @@ doc: "https://url/to/documentation"
 bug-reports: "https://github.com/OCamlPro/benchtop/issues"
 depends: [
   "ocaml"
-  "dune" {>= "3.4"}
+  "dune" {>= "3.4" & <= "3.6.2"}
   "dune-site"
   "cmdliner"
   "fmt"

@@ -34,6 +34,9 @@ module Time : sig
   type t = Unix.tm
 
   include Rapper.CUSTOM with type t := t
+
+  val pp : t Fmt.t
+  val show : t -> string
 end
 
 module Kind_diff : sig
@@ -57,6 +60,8 @@ module Prover : sig
 
   val readdir : dir:string -> t list
   val of_binary_name : string -> t
+  val pp : t Fmt.t
+  val show : t -> string
 end
 
 module Problem : sig

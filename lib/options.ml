@@ -1,11 +1,12 @@
-let set_share_dir, share_dir, binaries_dir =
+let set_share_dir, share_dir, binaries_dir, db_dir =
   let share_dir =
     let home_path = Unix.getenv "HOME" in
     ref (Filename.concat home_path ".local/share/benchtop")
   in
   ( (fun dir -> share_dir := dir),
     !share_dir,
-    Filename.concat !share_dir "binaries" )
+    Filename.concat !share_dir "binaries",
+    Filename.concat !share_dir "databases" )
 
 let set_tests_dir, tests_dir =
   let tests_dir =

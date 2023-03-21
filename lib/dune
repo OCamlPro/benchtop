@@ -23,6 +23,7 @@
   tyxml
   fmt
   inotify.lwt
+  uuidm
   ppx_rapper_lwt)
  (preprocess
   (pps tyxml-ppx ppx_rapper)))
