@@ -8,7 +8,7 @@ let attach db_path (module Db : Caqti_lwt.CONNECTION) =
   Db.exec ((string ->. unit) @@ "attach database ? as other") db_path
 
 let retrieve ~db_file ?db_attached req =
-  let prefix = Filename.concat Options.share_dir in
+  let prefix = Filename.concat Options.db_dir in
   let db_file_path = prefix db_file in
   let db_attached_path = Option.map prefix db_attached in
   let db_uri = Format.sprintf "sqlite3://%s" db_file_path |> Uri.of_string in
@@ -130,7 +130,7 @@ module Prover = struct
         record_out]
 
   let readdir ~dir =
-    File.readdir dir
+    File.read_dir dir
     |> List.map (fun filename -> { name = filename; version = "" })
 
   let of_binary_name binary =

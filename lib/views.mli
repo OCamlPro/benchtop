@@ -15,7 +15,7 @@ val render_round_detail :
 
 val render_problem_trace :
   Dream.request ->
-  file_content:string ->
+  file_content:string option ->
   Models.Problem.t ->
   string
 

@@ -51,5 +51,5 @@ let look_up_post_param request key =
   | `Wrong_content_type -> Error `Wrong_content_type
 
 let look_up_param request key =
-  try Lwt_result.return (Dream.param request key)
+  try Lwt_result.return @@ Dream.param request key
   with Failure _ -> Lwt_result.fail (`Key_not_found key)

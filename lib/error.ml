@@ -16,43 +16,50 @@ type form =
   | `Many_tokens of (string * string) list
   | `Wrong_content_type ]
 
-type param = [ form | `Key_not_found of string ]
-type misc = [ `Cannot_convert_to_base64 | `Unknown_error of string ]
+type param = [ form | `Key_not_found of string | `Key_wrong_type of string ]
+type misc =
+  [ `Cannot_convert_to_base64
+  | `Unknown_error of string
+  | `Cannot_read of string ]
 
 type t = [ sql | round | param | misc ]
 
 let pp_error_code fmt =
   let open Unix in
   function
-  | WEXITED rc -> Format.fprintf fmt "WEXITED %i" rc
-  | WSIGNALED rc -> Format.fprintf fmt "WSIGNALED %i" rc
-  | WSTOPPED rc -> Format.fprintf fmt "WSTOPPED %i" rc
+  | WEXITED rc -> Fmt.pf fmt "WEXITED %i" rc
+  | WSIGNALED rc -> Fmt.pf fmt "WSIGNALED %i" rc
+  | WSTOPPED rc -> Fmt.pf fmt "WSTOPPED %i" rc
 
 let pp_process fmt = function
-  | `Is_running -> Format.fprintf fmt "The processus is still running"
+  | `Is_running -> Fmt.pf fmt "The processus is still running"
   | `Stopped rc ->
-      Format.fprintf fmt "The processus has been stopped with the error code %a"
+      Fmt.pf fmt "The processus has been stopped with the error code %a"
         pp_error_code rc
-  | `Db_not_found -> Format.fprintf fmt "The database has not been found"
+  | `Db_not_found -> Fmt.pf fmt "The database has not been found"
 
 let pp_round fmt = function
   | #Caqti_error.t as err -> Caqti_error.pp fmt err
   | #process as err -> pp_process fmt err
-  | `Round_not_found -> Format.fprintf fmt "Cannot find the round of uuid ?"
+  | `Round_not_found -> Fmt.pf fmt "Cannot find the round of uuid ?"
   | `Cannot_retrieve_info db_file ->
-      Format.fprintf fmt "Cannot retrieve data from the database %s" db_file
-  | `Not_done -> Format.fprintf fmt "The round is still running"
+      Fmt.pf fmt "Cannot retrieve data from the database %s" db_file
+  | `Not_done -> Fmt.pf fmt "The round is still running"
 
+(* TODO: implement this function. *)
 let pp_form _fmt = function _ -> failwith "not implemented yet"
 
 let pp_param fmt = function
   | #form as err -> pp_form fmt err
-  | `Key_not_found str -> Format.fprintf fmt "Cannot found the key %s" str
+  | `Key_not_found str -> Fmt.pf fmt "Cannot found the key %s" str
+  | `Key_wrong_type str ->
+      Fmt.pf fmt "Wrong type value for the key %s" str
 
 let pp_misc fmt = function
   | `Cannot_convert_to_base64 ->
-      Format.fprintf fmt "Cannot convert the string to base64"
-  | `Unknown_error err -> Format.fprintf fmt "Unknown error: %s" err
+      Fmt.pf fmt "Cannot convert the string to base64"
+  | `Unknown_error err -> Fmt.pf fmt "Unknown error: %s" err
+  | `Cannot_read file -> Fmt.pf fmt "Cannot read the file %s" file
 
 let pp fmt = function
   | #Caqti_error.t as err -> Caqti_error.pp fmt err

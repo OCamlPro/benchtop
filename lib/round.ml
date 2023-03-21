@@ -33,17 +33,18 @@ end = struct
   let is_done { handler; _ } =
     match handler#state with Running -> false | Exited _ -> true
 
-  let readall_and_close filename =
-    let ch = open_in filename in
-    let content = File.read_all ch in
-    In_channel.close ch;
-    content
+  let pp_list fmt =
+    let pp_sep fmt () = Fmt.pf fmt "\n" in
+    let pp_string fmt = Fmt.pf fmt "%s" in
+    Format.pp_print_list ~pp_sep pp_string fmt
 
-  let pp_output fmt ({ stdout; stderr; _ } as proc) =
-    if is_done proc then
-      Format.fprintf fmt "Standard output: @,%s@,Error output: @,%s@,"
-        (readall_and_close stdout) (readall_and_close stderr)
-    else Format.fprintf fmt "Output is not ready"
+  let pp_output fmt ({ stdout; stderr; _ } as proc) = ()
+    (* if is_done proc then
+      let* stdout = File.read_until stdout in
+      let* stderr = File.read_until stderr in
+      Fmt.pf fmt "Standard output: @,%a@,Error output: @,%a@," pp_list stdout pp_list stderr;
+      Lwt.return_unit
+    else Fmt.pf fmt "Output is not ready"; Lwt.return_unit *)
 end
 
 type status =
@@ -150,20 +151,21 @@ let run { id; prover; status; _ } =
   match status with
   | Pending { cmd; _ } ->
       let name = fst cmd in
+      let* watcher = Lwt_inotify.create () in
+      let+ _ =
+        Lwt_inotify.add_watch watcher Options.db_dir [ Inotify.S_Create ]
+      in
       Dream.debug (fun log -> log "Ready to run %s" name);
       let proc = Process.run ~cmd in
       Dream.debug (fun log -> log "Running %s" name);
-      let* watcher = Lwt_inotify.create () in
-      let+ _ =
-        Lwt_inotify.add_watch watcher Options.share_dir [ Inotify.S_Create ]
-      in
       Ok ({ id; prover; status = Running { running_since = Misc.now (); watcher; proc } })
   | Running _ | Done _ -> Lwt_result.fail `Is_running
 
-let db_file { id; _ } = Format.sprintf "%s.sqlite" (Uuidm.to_bytes id)
+let db_file { id; _ } = Format.sprintf "%s.sqlite" (Uuidm.to_string id)
 
 let find_db_file round inotify =
   let is_my_db = String.equal (db_file round) in
+  Dream.debug (fun log -> log "DB NAME: %s" (db_file round));
   Lwt_inotify.try_read inotify >>= function
   | Some (_, [ Inotify.Create ], _, Some file) when is_my_db file ->
       Lwt_result.return file

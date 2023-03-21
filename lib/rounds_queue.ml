@@ -7,15 +7,15 @@ let empty = { lst = []; pos = None }
 
 let make ~dir =
   let ext_filter str = String.equal str ".sqlite" in
-  File.readdir ~ext_filter dir |> Lwt_list.map_s Round.resurect
+  File.read_dir ~ext_filter dir |> Lwt_list.map_s Round.resurect
   >>= fun rounds ->
-  Lwt.return
-    (List.sort
+  Lwt.return @@
+    List.sort
        (fun round1 round2 ->
          match (round1, round2) with
          | Ok round1, Ok round2 -> Round.compare round2 round1
-         | _ -> failwith "Resurecting round cannot failed")
-       rounds)
+         | _ -> -1)
+       rounds
   >|= fun lst -> { lst; pos = None }
 
 let rec update { lst; pos } =

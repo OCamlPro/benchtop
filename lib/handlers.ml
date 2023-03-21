@@ -78,6 +78,8 @@ let handle_round_detail request =
   in
   view >>= Helper.view_or_error_to_response request
 
+let is_zip_file file = String.equal (Filename.extension file) ".zip"
+
 let handle_problem_trace request =
   let view =
     let*? pb =
@@ -91,7 +93,21 @@ let handle_problem_trace request =
       >>? Round.problem ~name
     in
     let+? file_content =
-        Lwt_result.return @@ File.read_all (open_in pb.file)
+      let content =
+        Misc.look_up_param request "display_content" >>? function
+        | "true" when is_zip_file pb.file ->
+            begin match File.extract_zip_file pb.file with
+            | Ok content -> Lwt_result.return @@ Some content
+            | (Error _) as err -> Lwt_result.return @@ None
+              (* TODO: propagate this error. *)
+            end
+        | "true" ->
+            File.read_lines pb.file
+            >>? fun lst -> Lwt_result.return @@ Some (String.concat "\n" lst)
+        | "false" -> Lwt_result.return None
+        | _ -> Lwt_result.fail (`Key_wrong_type "display_content")
+      in
+      content
     in
     Views.render_problem_trace request ~file_content pb
   in

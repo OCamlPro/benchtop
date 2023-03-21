@@ -602,6 +602,13 @@ let render_round_detail request ~page ~total ~prover
 
 let render_problem_trace request ~file_content (pb : Models.Problem.t) =
   let header = Format.sprintf "Problem %s" (Filename.basename pb.file) in
+  let%html listing =
+    match file_content with
+    | Some _ ->
+      "<div></div>"
+    | None ->
+      "<div></div>"
+  in
   let%html content =
     "\
     <div class='container-fluid'>\
@@ -625,7 +632,7 @@ let render_problem_trace request ~file_content (pb : Models.Problem.t) =
               <label for='problem' class='form-label'>Problem content</label>\
               <textarea class='form-control bg-light' id='problem' rows='20' \
               readonly>\
-                " (Html.txt file_content) "\
+                " (Html.txt listing) "\
               </textarea>\
             </div>\
             <div class='row'>\
