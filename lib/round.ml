@@ -33,18 +33,18 @@ end = struct
   let is_done { handler; _ } =
     match handler#state with Running -> false | Exited _ -> true
 
-  let pp_list fmt =
-    let pp_sep fmt () = Fmt.pf fmt "\n" in
-    let pp_string fmt = Fmt.pf fmt "%s" in
-    Format.pp_print_list ~pp_sep pp_string fmt
+  let read_all_and_close file =
+    let cin = open_in file in
+    let content = In_channel.input_all cin in
+    In_channel.close cin;
+    content
 
-  let pp_output fmt ({ stdout; stderr; _ } as proc) = ()
-    (* if is_done proc then
-      let* stdout = File.read_until stdout in
-      let* stderr = File.read_until stderr in
-      Fmt.pf fmt "Standard output: @,%a@,Error output: @,%a@," pp_list stdout pp_list stderr;
-      Lwt.return_unit
-    else Fmt.pf fmt "Output is not ready"; Lwt.return_unit *)
+  let pp_output fmt ({ stdout; stderr; _ } as proc) =
+    if is_done proc then
+      let stdout = read_all_and_close stdout in
+      let stderr = read_all_and_close stderr in
+      Fmt.pf fmt "Standard output: @,%s@,Error output: @,%s@," stdout stderr
+    else Fmt.pf fmt "Output is not ready"
 end
 
 type status =
@@ -181,7 +181,7 @@ let update ({ status; _ } as round) =
             Dream.debug (fun log -> log "Found the database %s" db_file);
             retrieve_info db_file
         | Error err ->
-            Dream.debug (fun log -> log "%a" Process.pp_output proc);
+            Dream.debug (fun log -> log "Benchpress output: %a" Process.pp_output proc);
             Lwt_result.fail err)
       else Lwt_result.return round
   | Pending _ | Done _ -> Lwt_result.return round

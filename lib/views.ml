@@ -367,7 +367,7 @@ end = struct
     match round.status with
     | Pending _ -> Html.txt "Pending"
     | Running _ -> Html.txt "Running"
-    | Done { summary; _ } ->
+    | Done _ ->
         let url = "round/" ^ (Uuidm.to_string round.id) in
         Html.(a ~a:[ a_href url ] [ txt "Done" ])
 

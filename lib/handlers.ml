@@ -100,7 +100,7 @@ let handle_problem_trace ?(is_full = false) request =
         if is_zip_file pb.file then
           match File.extract_zip_file pb.file with
           | Ok content -> Lwt_result.return @@ Some content
-          | (Error _) as err -> Lwt_result.return @@ None
+          | (Error _) as _err -> Lwt_result.return @@ None
             (* TODO: propagate this error. *)
         else
           File.read_lines pb.file

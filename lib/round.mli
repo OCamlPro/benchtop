@@ -4,7 +4,7 @@ module Process : sig
   val run : cmd:Lwt_process.command -> t
   val stop : t -> Unix.process_status Lwt.t
   val is_done : t -> bool
-  val pp_output : t Fmt.t
+(*   val pp_output : t Fmt.t *)
 end
 
 type status = private
