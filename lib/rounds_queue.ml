@@ -52,10 +52,11 @@ let find_by_uuid { lst; _ } uuid =
     List.partition_map (function Ok x -> Left x | Error err -> Right err) lst
     |> fst
   in
+  (* TODO: clean-up *)
   List.find_opt
     (fun (round : Round.t) ->
       match round.status with
-      | Done { summary; _ } -> String.equal uuid summary.uuid
+      | Done _ -> String.equal uuid (Uuidm.to_string round.id)
       | Pending _ | Running _ -> false)
     lst
   |> Option.to_result ~none:`Round_not_found

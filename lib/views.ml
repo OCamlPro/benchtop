@@ -26,7 +26,7 @@ end = struct
                 </div>\
                 <div class='modal-body'>\
                   <p>\
-                    " [Html.txt (Format.asprintf "%a" Error.pp err)] "\
+                    " [Html.txt @@ Fmt.str "%a" Error.pp err] "\
                   </p>\
                 </div>\
               </div>\
@@ -36,7 +36,7 @@ end = struct
     | None -> []
 
   let html_to_string html =
-    Format.asprintf "%a@." (Html.pp ~indent:true ()) html
+    Fmt.str "%a@." (Html.pp ~indent:true ()) html
 
   (* TODO: move this function in Models module. *)
   let pp_date fmt (tm : Unix.tm) =
@@ -120,7 +120,7 @@ let page_layout request ~subtitle ?(hcontent = []) ?(fcontent = []) content =
           crossorigin='anonymous'/>\
         <script src='"bs_script_url"' integrity='"bs_script_hash"' \
           crossorigin='anonymous'></script>\
-        <script src='scripts/modal.js'></script>\
+        <script src='/scripts/modal.js'></script>\
         <script src='https://code.jquery.com/jquery-3.6.0.min.js' \
           integrity='sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=' \
           crossorigin='anonymous'></script>
@@ -325,7 +325,7 @@ let benchpress_form request ~is_running provers =
   let provers =
     List.map
       (fun prover ->
-        let key = Format.asprintf "%a" Models.Prover.pp prover in
+        let key = Fmt.str "%a" Models.Prover.pp prover in
         let value = key in
         (key, value))
       provers
@@ -368,11 +368,11 @@ end = struct
     | Pending _ -> Html.txt "Pending"
     | Running _ -> Html.txt "Running"
     | Done { summary; _ } ->
-        let url = "round/" ^ summary.uuid in
+        let url = "round/" ^ (Uuidm.to_string round.id) in
         Html.(a ~a:[ a_href url ] [ txt "Done" ])
 
   let format_prover (round : Round.t) =
-    Html.txt @@ Format.asprintf "%a" Models.Prover.pp round.prover
+    Html.txt @@ Fmt.str "%a" Models.Prover.pp round.prover
 
   let format_date (round : Round.t) =
     let date =

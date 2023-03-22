@@ -17,15 +17,16 @@ end = struct
   let redirect request = function
     | Ok _ -> previous_page request |> Dream.redirect request
     | Error err ->
-        Dream.error (fun log -> log "%a" Error.pp err);
+        Dream.error (fun log -> log "The request produced the error: %a"
+          Error.pp err);
         Error.set_session request err;
         previous_page request |> Dream.redirect request
 
   let view_or_error_to_response request = function
     | Ok view -> Dream.html view
     | Error err ->
-        let err = (err :> Error.t) in
-        Dream.error (fun log -> log "%a" Error.pp err);
+        Dream.error (fun log -> log "The request produced the error: %a"
+          Error.pp err);
         Error.set_session request err;
         previous_page request |> Dream.redirect request
 end

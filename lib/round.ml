@@ -142,7 +142,7 @@ let retrieve_info db_file =
   in
   (* TODO: generate an error if we fail to retrieve the uuid from the
      filename. *)
-  let id = Filename.chop_extension db_file |> Uuidm.of_bytes |> Option.get in
+  let id = Filename.chop_extension db_file |> Uuidm.of_string |> Option.get in
   { id; prover; status = Done { done_since = summary.running_at; summary } }
 
 let resurect db_file = retrieve_info db_file

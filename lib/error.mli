@@ -27,5 +27,11 @@ type t = [ sql | process | round | param | form | misc ]
 
 val pp : [< t ] Fmt.t
 val show : [< t ] -> string
+
 val get_session : Dream.request -> [< t ] option
+(** [get_session request] return the error produced by the previous request
+    if any. *)
+
 val set_session : Dream.request -> [< t ] -> unit
+(** [set_session request err] set the error [err] to be retrieved by the next
+    request. *)
