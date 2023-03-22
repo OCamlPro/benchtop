@@ -39,7 +39,10 @@ let server interface port =
            scope "/round" [ origin_referrer_check ]
              [
                get "/:uuid" @@ Handlers.handle_round_detail;
-               get "/:uuid/problem/:problem" @@ Handlers.handle_problem_trace;
+               get "/:uuid/problem/:problem/partial" @@
+               Handlers.handle_problem_trace ~is_full:false;
+               get "/:uuid/problem/:problem/full"
+                @@ Handlers.handle_problem_trace ~is_full:true;
                get "/:uuid1/diff/:uuid2" @@ Handlers.handle_rounds_diff;
                post "/action" @@ Handlers.handle_round_action_dispatcher;
              ];

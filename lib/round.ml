@@ -118,6 +118,7 @@ let make ~binary =
           [|
             "benchpress";
             "run";
+            "--no-failure";
             "-o";
             Filename.concat Options.db_dir (Format.asprintf "%a.sqlite" Uuidm.pp id);
             "-j";

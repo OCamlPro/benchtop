@@ -23,10 +23,17 @@ let read_lines ?count file =
   >>= fun fd ->
     let cin = Lwt_io.of_fd ~mode:Input fd in
     let stream = Lwt_io.read_lines cin in
-    let* _ = Lwt_io.close cin in
     match count with
-    | Some c -> Lwt_result.ok @@ Lwt_stream.nget c stream
-    | None -> Lwt_result.ok @@ Lwt_stream.to_list stream
+    | Some c ->
+        Lwt_stream.nget c stream
+        >>= fun lst ->
+          let* _ = Lwt_io.close cin in
+          Lwt_result.return lst
+    | None ->
+        Lwt_stream.to_list stream
+        >>= fun lst ->
+          let* _ = Lwt_io.close cin in
+          Lwt_result.return lst
 
 let extract_zip_file file =
   let cin = Zip.open_in file in

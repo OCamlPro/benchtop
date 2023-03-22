@@ -1,5 +1,7 @@
 open Syntax
 
+(* TODO: the referer field of the http header is not always valid. We should
+    save in a session the last page requested. *)
 let previous_page request =
   match Dream.header request "Referer" with Some url -> url | None -> "/"
 
@@ -81,7 +83,7 @@ let handle_round_detail request =
 
 let is_zip_file file = String.equal (Filename.extension file) ".zip"
 
-let handle_problem_trace request =
+let handle_problem_trace ?(is_full = false) request =
   let view =
     let*? pb =
       let ctx = Context.get () in
@@ -94,21 +96,16 @@ let handle_problem_trace request =
       >>? Round.problem ~name
     in
     let+? file_content =
-      let content =
-        Misc.look_up_param request "display_content" >>? function
-        | "true" when is_zip_file pb.file ->
-            begin match File.extract_zip_file pb.file with
-            | Ok content -> Lwt_result.return @@ Some content
-            | (Error _) as err -> Lwt_result.return @@ None
-              (* TODO: propagate this error. *)
-            end
-        | "true" ->
-            File.read_lines pb.file
-            >>? fun lst -> Lwt_result.return @@ Some (String.concat "\n" lst)
-        | "false" -> Lwt_result.return None
-        | _ -> Lwt_result.fail (`Key_wrong_type "display_content")
-      in
-      content
+      if is_full then
+        if is_zip_file pb.file then
+          match File.extract_zip_file pb.file with
+          | Ok content -> Lwt_result.return @@ Some content
+          | (Error _) as err -> Lwt_result.return @@ None
+            (* TODO: propagate this error. *)
+        else
+          File.read_lines pb.file
+          >>? fun lst -> Lwt_result.return @@ Some (String.concat "\n" lst)
+      else Lwt_result.return None
     in
     Views.render_problem_trace request ~file_content pb
   in

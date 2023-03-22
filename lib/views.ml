@@ -473,7 +473,7 @@ end = struct
     let open Models.Problem in
     let uuid = Dream.param request "uuid" in
     let pb_link =
-      Format.sprintf "/round/%s/problem/%s" uuid (Dream.to_base64url pb.file)
+      Format.sprintf "/round/%s/problem/%s/partial" uuid (Dream.to_base64url pb.file)
     in
     [%html "
       <tr>\
@@ -602,12 +602,21 @@ let render_round_detail request ~page ~total ~prover
 
 let render_problem_trace request ~file_content (pb : Models.Problem.t) =
   let header = Format.sprintf "Problem %s" (Filename.basename pb.file) in
-  let%html listing =
+  let listing =
     match file_content with
-    | Some _ ->
-      "<div></div>"
+    | Some content ->
+        let%html el =
+          "<textarea class='form-control bg-light' id='problem' rows='20' \
+            readonly>\
+            " (Html.txt content) "\
+          </textarea>" [@ocamlformat "disable"]
+        in
+        el
     | None ->
-      "<div></div>"
+        let%html el =
+          "<div><a href='full'>Show</a></div>" [@ocamlformat "disable"]
+        in
+        el
   in
   let%html content =
     "\
@@ -630,10 +639,7 @@ let render_problem_trace request ~file_content (pb : Models.Problem.t) =
             </div>
             <div class='row'>\
               <label for='problem' class='form-label'>Problem content</label>\
-              <textarea class='form-control bg-light' id='problem' rows='20' \
-              readonly>\
-                " (Html.txt listing) "\
-              </textarea>\
+              " [listing] "\
             </div>\
             <div class='row'>\
               <div class='col'>\
@@ -690,7 +696,8 @@ end = struct
   let row ~number ((problem1, problem2) : Models.Problem.t * Models.Problem.t)
       _request =
     let pb_link =
-      Format.sprintf "/round//problem/%s" (Dream.to_base64url problem1.file)
+      (* TODO: fix this bug *)
+      Format.sprintf "/round//problem/%s/partial" (Dream.to_base64url problem1.file)
     in
     let rel_timeout =
       (problem1.rtime -. problem2.rtime) /. problem1.rtime *. 100.0
