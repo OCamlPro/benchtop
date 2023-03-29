@@ -40,7 +40,7 @@ let handle_rounds_list request =
     Context.set { queue };
     let is_running = Rounds_queue.is_running queue in
     let rounds = Rounds_queue.to_list queue in
-    let provers = Models.Prover.readdir ~dir:Options.binaries_dir in
+    let provers = Models.Prover.readdir ~dir:(Options.binaries_dir ()) in
     Ok (Views.render_rounds_list request ~is_running rounds provers)
   in
   view >>= Helper.view_or_error_to_response request

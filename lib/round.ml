@@ -69,7 +69,7 @@ type t = {
   }
 
 let pp_bp_config ~binary fmt () =
-  let binary_path = Filename.concat Options.binaries_dir binary in
+  let binary_path = Filename.concat (Options.binaries_dir ()) binary in
   let prover = Models.Prover.of_binary_name binary in
   Format.fprintf fmt
     ("\
@@ -93,7 +93,7 @@ let pp_bp_config ~binary fmt () =
     (unsat \"Valid|(^unsat)\")@ \
     (unknown \"(I Don't Know)|(^unsat)\")@ \
     (timeout \"^timeout\"))@]@."[@ocamlformat "disable"] )
-    Options.tests_dir prover.name prover.version binary_path
+    (Options.tests_dir ()) prover.name prover.version binary_path
 
 let generate_bp_config ~binary =
   let filename, ch = Filename.open_temp_file "benchpress_" ".sexp" in
@@ -120,16 +120,16 @@ let make ~binary =
             "run";
             "--no-failure";
             "-o";
-            Filename.concat Options.db_dir (Format.asprintf "%a.sqlite" Uuidm.pp id);
+            Filename.concat (Options.db_dir ()) (Format.asprintf "%a.sqlite" Uuidm.pp id);
             "-j";
-            string_of_int Options.number_of_jobs;
+            string_of_int (Options.number_of_jobs ());
             "-c";
             config_path;
             "-t";
-            string_of_int Options.prover_timeout;
+            string_of_int (Options.prover_timeout ());
             "-p";
             "alt-ergo";
-            Options.tests_dir;
+            (Options.tests_dir ());
           |] )
   in
   Dream.debug (fun log -> log "Command: %a" pp_cmd cmd);
@@ -154,7 +154,7 @@ let run { id; prover; status; _ } =
       let name = fst cmd in
       let* watcher = Lwt_inotify.create () in
       let+ _ =
-        Lwt_inotify.add_watch watcher Options.db_dir [ Inotify.S_Create ]
+        Lwt_inotify.add_watch watcher (Options.db_dir ()) [ Inotify.S_Create ]
       in
       Dream.debug (fun log -> log "Ready to run %s" name);
       let proc = Process.run ~cmd in

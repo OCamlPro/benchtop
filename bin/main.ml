@@ -57,17 +57,17 @@ let server interface port =
 
 let check_share_dir () =
   try
-    if not @@ Sys.is_directory Options.share_dir then begin
+    if not @@ Sys.is_directory (Options.share_dir ()) then begin
       Dream.error (fun log -> log "The file %s exists but is not a directory."
-        Options.share_dir);
+        (Options.share_dir ()));
       exit (-1)
     end
   with
   Sys_error _ ->
     begin
-      Sys.mkdir Options.share_dir 0o755;
-      Sys.mkdir Options.binaries_dir 0o755;
-      Sys.mkdir Options.db_dir 0o755
+      Sys.mkdir (Options.share_dir ()) 0o755;
+      Sys.mkdir (Options.binaries_dir ()) 0o755;
+      Sys.mkdir (Options.db_dir ()) 0o755
     end
 
 let main log_level interface port number_of_jobs share_dir =
@@ -109,11 +109,11 @@ module Cmd = struct
   let number_of_jobs =
     let doc = "Set the number of jobs." in
     Arg.(
-      value & opt int Options.number_of_jobs & info [ "j" ] ~docv:"NUMBER" ~doc)
+      value & opt int (Options.number_of_jobs ()) & info [ "j" ] ~docv:"NUMBER" ~doc)
 
   let share_dir =
     let doc = "Set the share dir." in
-    Arg.(value & opt string Options.share_dir & info [ "d" ] ~docv:"SHARE" ~doc)
+    Arg.(value & opt string (Options.share_dir ()) & info [ "d" ] ~docv:"SHARE" ~doc)
 
   let cmd =
     let open Cmdliner in

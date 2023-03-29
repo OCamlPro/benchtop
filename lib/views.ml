@@ -490,7 +490,7 @@ end = struct
           " [Html.txt (Helper.string_of_errcode pb.errcode)] "\
         </td>\
         <td class='text-center'>\
-          " [Html.txt (Helper.string_of_float pb.rtime)] "\
+          " [Html.txt (Helper.string_of_float pb.utime)] "\
         </td>\
         <td class='" ["text-center"; (Helper.color_of_res pb.res)] "'>\
           " [Html.txt (Helper.string_of_res pb.res)] "\
@@ -684,7 +684,7 @@ end = struct
       <td>\
         " [Html.txt (
           match pos with
-          | `Old -> Helper.string_of_float pb.rtime
+          | `Old -> Helper.string_of_float pb.utime
           | `New r -> Format.sprintf "%i%%" r
         )] "\
       </td>\
@@ -700,7 +700,7 @@ end = struct
       Format.sprintf "/round//problem/%s/partial" (Dream.to_base64url problem1.file)
     in
     let rel_timeout =
-      (problem1.rtime -. problem2.rtime) /. problem1.rtime *. 100.0
+      (problem1.utime -. problem2.utime) /. problem1.utime *. 100.0
       |> Float.round |> Float.to_int
     in
     [%html "

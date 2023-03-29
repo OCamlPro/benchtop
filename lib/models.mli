@@ -74,6 +74,8 @@ module Problem : sig
     stderr : string;
     errcode : Errcode.t;
     rtime : float;
+    utime : float;
+    stime : float;
   }
 
   val count :

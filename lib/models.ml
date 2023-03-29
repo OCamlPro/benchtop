@@ -8,7 +8,7 @@ let attach db_path (module Db : Caqti_lwt.CONNECTION) =
   Db.exec ((string ->. unit) @@ "attach database ? as other") db_path
 
 let retrieve ~db_file ?db_attached req =
-  let prefix = Filename.concat Options.db_dir in
+  let prefix = Filename.concat @@ Options.db_dir () in
   let db_file_path = prefix db_file in
   let db_attached_path = Option.map prefix db_attached in
   let db_uri = Format.sprintf "sqlite3://%s" db_file_path |> Uri.of_string in
@@ -162,6 +162,8 @@ module Problem = struct
     stderr : string;
     errcode : Errcode.t;
     rtime : float;
+    utime : float;
+    stime : float;
   }
 
   let count ?(file = "") ~res ~file_expect ~errcode ~only_diff
@@ -187,9 +189,9 @@ module Problem = struct
   let select, select_one =
     let function_out
         ( file,
-          (res, (file_expect, (timeout, (stdout, (stderr, (errcode, rtime))))))
-        ) =
-      { file; res; file_expect; timeout; stdout; stderr; errcode; rtime }
+          (res, (file_expect, (timeout, (stdout, (stderr, (errcode, (rtime, (utime, stime))))))
+        ))) =
+          { file; res; file_expect; timeout; stdout; stderr; errcode; rtime; utime; stime }
     in
     let open Caqti_type.Std in
     let open Caqti_request.Infix in
@@ -198,7 +200,7 @@ module Problem = struct
         tup2 string
           (tup2 Res.t
              (tup2 Res.t
-                (tup2 int (tup2 octets (tup2 octets (tup2 Errcode.t float)))))))
+                (tup2 int (tup2 octets (tup2 octets (tup2 Errcode.t (tup2 float (tup2 float float)))))))))
     in
     ( (fun ?(file = "") ~res ~file_expect ~errcode ~only_diff ~page
            (module Db : Caqti_lwt.CONNECTION) ->
@@ -206,7 +208,7 @@ module Problem = struct
           ((unit ->* output)
           @@ Format.asprintf
                "SELECT file, res, file_expect, timeout, stdout, stderr, \
-                errcode, rtime FROM prover_res WHERE file LIKE '%%%s%%' AND \
+                errcode, rtime, utime, stime FROM prover_res WHERE file LIKE '%%%s%%' AND \
                 (res IN (%a) OR '%a' = '') AND (file_expect IN (%a) OR '%a' = \
                 '') AND (errcode IN (%a) OR '%a' = '') AND (NOT %B OR (res <> \
                 file_expect)) LIMIT 50 OFFSET (50*%i)"
@@ -224,7 +226,7 @@ module Problem = struct
           ((unit ->! output)
           @@ Format.asprintf
                "SELECT file, res, file_expect, timeout, stdout, stderr, \
-                errcode, rtime FROM prover_res WHERE file LIKE '%%%s%%'"
+                errcode, rtime, utime, stime FROM prover_res WHERE file LIKE '%%%s%%'"
                name)
           ()
         >|? function_out )
@@ -261,18 +263,18 @@ module Problem_diff = struct
          p1.file LIKE ('%' || %string{file} || '%') AND ((((p1.res = \
          p1.file_expect AND p1.file_expect NOT IN ('error', 'unknown', \
          'timeout') AND p2.res <> p2.file_expect) OR \
-         (((p1.rtime-p2.rtime)/p1.rtime < -%float{threshold} AND \
-         ROUND(p1.rtime-p2.rtime, 0) < -1 AND NOT (p1.res = 'timeout' AND \
+         (((p1.utime-p2.utime)/p1.utime < -%float{threshold} AND \
+         ROUND(p1.utime-p2.utime, 0) < -1 AND NOT (p1.res = 'timeout' AND \
          p2.res = 'timeout')) AND %bool{show_rtime_reg})) AND \
          %Kind_diff{kind_diff} = 'improvement') OR (((p2.res = p2.file_expect \
          AND p2.file_expect NOT IN ('error', 'unknown', 'timeout') AND p1.res \
-         <> p1.file_expect) OR (((p1.rtime-p2.rtime)/p1.rtime > \
-         %float{threshold} AND ROUND(p1.rtime-p2.rtime, 0) > 1 AND NOT (p1.res \
+         <> p1.file_expect) OR (((p1.utime-p2.utime)/p1.utime > \
+         %float{threshold} AND ROUND(p1.utime-p2.utime, 0) > 1 AND NOT (p1.res \
          = 'timeout' AND p2.res = 'timeout')) AND %bool{show_rtime_reg})) AND \
          %Kind_diff{kind_diff} = 'regression') OR (((p1.res <> p2.res OR \
          p1.file_expect <> p2.file_expect OR p1.errcode <> p2.errcode) OR \
-         ((ABS(p1.rtime-p2.rtime)/p1.rtime > %float{threshold} AND \
-         ABS(ROUND(p1.rtime-p2.rtime, 0)) > 1 AND NOT (p1.res = 'timeout' AND \
+         ((ABS(p1.utime-p2.utime)/p1.utime > %float{threshold} AND \
+         ABS(ROUND(p1.utime-p2.utime, 0)) > 1 AND NOT (p1.res = 'timeout' AND \
          p2.res = 'timeout')) OR %bool{show_rtime_reg})) AND \
          %Kind_diff{kind_diff} = 'difference'))\n\
         \      "]
@@ -283,27 +285,30 @@ module Problem_diff = struct
         "SELECT p1.file AS @string{file1}, p1.res AS @Res{res1}, \
          p1.file_expect @Res{file_expect1}, p1.timeout @int{timeout1}, \
          p1.stdout AS @octets{stdout1}, p1.stderr AS @octets{stderr1}, \
-         p1.errcode AS @Errcode{errcode1}, p1.rtime AS @float{rtime1}, p2.file \
+         p1.errcode AS @Errcode{errcode1}, p1.rtime AS @float{rtime1}, \
+         p1.utime AS @float{utime1}, p1.stime AS @float{stime1}, p2.file \
          AS @string{file2}, p2.res AS @Res{res2}, p2.file_expect \
          @Res{file_expect2}, p2.timeout @int{timeout2}, p2.stdout AS \
          @octets{stdout2}, p2.stderr AS @octets{stderr2}, p2.errcode AS \
-         @Errcode{errcode2}, p2.rtime AS @float{rtime2} FROM main.prover_res \
+         @Errcode{errcode2}, p2.rtime AS @float{rtime2}, \
+         p2.utime AS @float{utime2}, p2.stime AS @float{stime2} \
+         FROM main.prover_res \
          AS p1 JOIN other.prover_res AS p2 ON p1.file = p2.file WHERE p1.file \
          LIKE ('%' || %string{file} || '%') AND ((((p1.res = p1.file_expect \
          AND p1.file_expect NOT IN ('error', 'unknown', 'timeout') AND p2.res \
-         <> p2.file_expect) OR (((p1.rtime-p2.rtime)/p1.rtime < \
-         -%float{threshold} AND ROUND(p1.rtime-p2.rtime, 0) < -1 AND NOT \
+         <> p2.file_expect) OR (((p1.utime-p2.utime)/p1.utime < \
+         -%float{threshold} AND ROUND(p1.utime-p2.utime, 0) < -1 AND NOT \
          (p1.res = 'timeout' AND p2.res = 'timeout')) AND \
          %bool{show_rtime_reg})) AND %Kind_diff{kind_diff} = 'improvement') OR \
          (((p2.res = p2.file_expect AND p2.file_expect NOT IN ('error', \
          'unknown', 'timeout') AND p1.res <> p1.file_expect) OR \
-         (((p1.rtime-p2.rtime)/p1.rtime > %float{threshold} AND \
-         ROUND(p1.rtime-p2.rtime, 0) > 1 AND NOT (p1.res = 'timeout' AND \
+         (((p1.utime-p2.utime)/p1.utime > %float{threshold} AND \
+         ROUND(p1.utime-p2.utime, 0) > 1 AND NOT (p1.res = 'timeout' AND \
          p2.res = 'timeout')) AND %bool{show_rtime_reg})) AND \
          %Kind_diff{kind_diff} = 'regression') OR (((p1.res <> p2.res OR \
          p1.file_expect <> p2.file_expect OR p1.errcode <> p2.errcode) OR \
-         ((ABS(p1.rtime-p2.rtime)/p1.rtime > %float{threshold} AND \
-         ABS(ROUND(p1.rtime-p2.rtime, 0)) > 1 AND NOT (p1.res = 'timeout' AND \
+         ((ABS(p1.utime-p2.utime)/p1.utime > %float{threshold} AND \
+         ABS(ROUND(p1.utime-p2.utime, 0)) > 1 AND NOT (p1.res = 'timeout' AND \
          p2.res = 'timeout')) OR %bool{show_rtime_reg})) AND \
          %Kind_diff{kind_diff} = 'difference'))\n\
         \      ORDER BY CASE WHEN\n\
@@ -320,6 +325,8 @@ module Problem_diff = struct
         ~stderr1
         ~errcode1
         ~rtime1
+        ~utime1
+        ~stime1
         ~file2
         ~res2
         ~file_expect2
@@ -328,6 +335,8 @@ module Problem_diff = struct
         ~stderr2
         ~errcode2
         ~rtime2
+        ~utime2
+        ~stime2
       ->
         Problem.
           ( {
@@ -339,6 +348,8 @@ module Problem_diff = struct
               stderr = stderr1;
               errcode = errcode1;
               rtime = rtime1;
+              utime = utime1;
+              stime = stime1;
             },
             {
               file = file2;
@@ -349,5 +360,7 @@ module Problem_diff = struct
               stderr = stderr2;
               errcode = errcode2;
               rtime = rtime2;
+              utime = utime2;
+              stime = stime2;
             } ))
 end
