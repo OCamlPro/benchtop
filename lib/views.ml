@@ -490,7 +490,13 @@ end = struct
           " [Html.txt (Helper.string_of_errcode pb.errcode)] "\
         </td>\
         <td class='text-center'>\
+          " [Html.txt (Helper.string_of_float pb.rtime)] "\
+        </td>\
+        <td class='text-center'>\
           " [Html.txt (Helper.string_of_float pb.utime)] "\
+        </td>\
+        <td class='text-center'>\
+          " [Html.txt (Helper.string_of_float pb.stime)] "\
         </td>\
         <td class='" ["text-center"; (Helper.color_of_res pb.res)] "'>\
           " [Html.txt (Helper.string_of_res pb.res)] "\
@@ -514,6 +520,8 @@ end = struct
             <td class='text-center'>Timeout</td>\
             <td class='text-center'>Error code</td>\
             <td class='text-center'>Running time</td>\
+            <td class='text-center'>User time</td>\
+            <td class='text-center'>Sys time</td>\
             <td class='text-center'>Result</td>\
             <td class='text-center'>Expected</td>\
           </tr>\
