@@ -56,7 +56,7 @@ let find_by_uuid { lst; _ } uuid =
   List.find_opt
     (fun (round : Round.t) ->
       match round.status with
-      | Done _ -> String.equal uuid (Uuidm.to_string round.id)
+      | Done _ -> Uuidm.equal uuid round.id
       | Pending _ | Running _ -> false)
     lst
   |> Option.to_result ~none:`Round_not_found

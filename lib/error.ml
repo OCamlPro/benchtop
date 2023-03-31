@@ -51,7 +51,7 @@ let pp_form _fmt = function _ -> failwith "not implemented yet"
 
 let pp_param fmt = function
   | #form as err -> pp_form fmt err
-  | `Key_not_found str -> Fmt.pf fmt "Cannot found the key %s" str
+  | `Key_not_found str -> Fmt.pf fmt "Cannot find the key %s" str
   | `Key_wrong_type str ->
       Fmt.pf fmt "Wrong type value for the key %s" str
 

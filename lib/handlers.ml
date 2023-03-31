@@ -45,6 +45,13 @@ let handle_rounds_list request =
   in
   view >>= Helper.view_or_error_to_response request
 
+let get_uuid request name =
+  Misc.look_up_param request name >>?
+  fun id ->
+    match Uuidm.of_string id with
+    | Some id -> Lwt_result.return id
+    | None -> Lwt_result.fail `Round_not_found
+
 let handle_round_detail request =
   let view =
     let ctx = Context.get () in
@@ -68,7 +75,8 @@ let handle_round_detail request =
       |> Option.value ~default:0
     in
     let*? round =
-      Misc.look_up_param request "uuid" >>? Rounds_queue.find_by_uuid ctx.queue
+      let*? id = get_uuid request "uuid" in
+      Rounds_queue.find_by_uuid ctx.queue id
     in
     let*? summary = Round.summary round in
     let*? total =
@@ -87,7 +95,7 @@ let handle_problem_trace ?(is_full = false) request =
   let view =
     let*? pb =
       let ctx = Context.get () in
-      let*? uuid = Misc.look_up_param request "uuid"
+      let*? uuid = get_uuid request "uuid"
       and*? name =
         let*? name = Misc.look_up_param request "problem" in
         Lwt.return @@ Misc.from_base64url name
@@ -124,14 +132,14 @@ let handle_stop_round request =
   | `Ok _ -> Dream.redirect request "/"
   | _ -> Dream.empty `Bad_Request
 
+(* TODO: clean up this part *)
 module Actions = struct
   let extract_selected_items =
     let regexp = Str.regexp "item_[0-9]+" in
     fun lst ->
       List.fold_left
         (fun acc (key, value) ->
-          if Str.string_match regexp key 0 then
-            Dream.from_base64url value :: acc
+          if Str.string_match regexp key 0 then value :: acc
           else acc)
         [] lst
 end
@@ -161,9 +169,11 @@ let handle_rounds_diff request =
   in
   let view =
     let*? round1 =
-      Misc.look_up_param request "uuid1" >>? Rounds_queue.find_by_uuid ctx.queue
+      let*? uuid = get_uuid request "uuid1" in
+      Rounds_queue.find_by_uuid ctx.queue uuid
     and*? round2 =
-      Misc.look_up_param request "uuid2" >>? Rounds_queue.find_by_uuid ctx.queue
+      let*? uuid = get_uuid request "uuid2" in
+      Rounds_queue.find_by_uuid ctx.queue uuid
     in
     let db_file1 = Round.db_file round1 in
     let db_file2 = Round.db_file round2 in
@@ -187,7 +197,7 @@ let handle_round_action_dispatcher request =
       match action_kind with
       | "compare" -> (
           match Actions.extract_selected_items params with
-          | [ Some uuid1; Some uuid2 ] ->
+          | [ uuid1; uuid2 ] ->
               let path = Format.sprintf "/round/%s/diff/%s" uuid1 uuid2 in
               Dream.redirect request path
           | _ -> Dream.empty `Bad_Request)

@@ -386,7 +386,7 @@ end = struct
   let format_uuid (round : Round.t) =
     match round.status with
     | Pending _ | Running _ -> Html.txt ""
-    | Done { summary; _ } -> Html.txt summary.uuid
+    | Done _ -> Html.txt (Uuidm.to_string round.id)
 
   let format_result (round : Round.t) =
     match round.status with
@@ -401,8 +401,8 @@ end = struct
         let check_selector =
           match round.status with
           | Pending _ | Running _ -> []
-          | Done { summary; _ } ->
-              [ check_selector ~number (Dream.to_base64url summary.uuid) ]
+          | Done _ ->
+              [ check_selector ~number (Uuidm.to_string round.id) ]
         in
         [%html "\
         <tr>\
