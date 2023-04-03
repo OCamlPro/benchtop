@@ -493,6 +493,9 @@ end = struct
           " [Html.txt (Helper.string_of_float pb.rtime)] "\
         </td>\
         <td class='text-center'>\
+          " [Html.txt (Helper.string_of_float (pb.utime +. pb.stime))] "\
+        </td>\
+        <td class='text-center'>\
           " [Html.txt (Helper.string_of_float pb.utime)] "\
         </td>\
         <td class='text-center'>\
@@ -519,6 +522,7 @@ end = struct
             <td>Problem</td>\
             <td class='text-center'>Timeout</td>\
             <td class='text-center'>Error code</td>\
+            <td class='text-center'>Wall time</td>\
             <td class='text-center'>Running time</td>\
             <td class='text-center'>User time</td>\
             <td class='text-center'>Sys time</td>\
@@ -684,19 +688,24 @@ module Problem_diffs_list : sig
 
   val filter_form : Dream.request -> [> Html_types.form ] Tyxml.Html.elt
 end = struct
-  let format_problem ~pos (pb : Models.Problem.t) =
+  let format_problem (pb : Models.Problem.t) =
     [%html "\
       <td>\
         " [Html.txt (Helper.string_of_errcode pb.errcode)] "\
       </td>\
       <td>\
-        " [Html.txt (
-          match pos with
-          | `Old -> Helper.string_of_float pb.utime
-          | `New r -> Format.sprintf "%i%%" r
-        )] "\
+        " [Html.txt (Helper.string_of_float pb.rtime)] "\
       </td>\
-      <td class='" [Helper.color_of_res pb.res] "'>\
+      <td>\
+        " [Html.txt (Helper.string_of_float (pb.utime +. pb.stime))] "\
+      </td>\
+      <td>\
+        " [Html.txt (Helper.string_of_float pb.utime)] "\
+      </td>\
+      <td>\
+        " [Html.txt (Helper.string_of_float pb.stime)] "\
+      </td>\
+      <td class='" [Helper.color_of_res pb.res] "' style='border-right: 1px black solid;'>\
         " [Html.txt (Helper.string_of_res pb.res)] "\
       </td>\
     "] [@ocamlformat "disable"]
@@ -705,11 +714,8 @@ end = struct
       _request =
     let pb_link =
       (* TODO: fix this bug *)
-      Format.sprintf "/round//problem/%s/partial" (Dream.to_base64url problem1.file)
-    in
-    let rel_timeout =
-      (problem1.utime -. problem2.utime) /. problem1.utime *. 100.0
-      |> Float.round |> Float.to_int
+      Format.sprintf "/round//problem/%s/partial"
+        (Dream.to_base64url problem1.file)
     in
     [%html "
       <tr>\
@@ -719,11 +725,11 @@ end = struct
         <td class='text-start text-break'>\
           <a href='"pb_link"'>" [Html.txt problem1.file] "</a>\
         </td>\
-        <td class='" [Helper.color_of_res problem1.file_expect] "'>\
+        <td class='" [Helper.color_of_res problem1.file_expect] "' \
+          style='border-right:1px black solid'>\
           " [Html.txt (Helper.string_of_res problem1.file_expect)] "\
         </td>\
-        " ((format_problem ~pos:`Old problem1)
-          @ (format_problem ~pos:(`New rel_timeout) problem2)) "
+        " ((format_problem problem1) @ (format_problem problem2)) "
       </tr>\
     "] [@ocamlformat "disable"]
 
@@ -740,10 +746,10 @@ end = struct
         <thead>\
           <tr>\
             <th colspan='3'></th>\
-            <th colspan='3'>\
+            <th colspan='6'>\
               " [format_prover_header prover_1] "\
             </th>\
-            <th colspan='3'>\
+            <th colspan='6'>\
               " [format_prover_header prover_2] "\
             </th>\
           </tr>
@@ -752,10 +758,16 @@ end = struct
             <th class='text-left'>Problem</th>\
             <th>Expected</th>\
             <th>Error code</th>\
+            <th>Wall time</th>\
             <th>Running time</th>\
+            <th>User time</th>\
+            <th>Sys time</th>\
             <th>Result</th>\
             <th>Error code</th>\
+            <th>Wall time</th>\
             <th>Running time</th>\
+            <th>User time</th>\
+            <th>Sys time</th>\
             <th>Result</th>\
           </tr>\
         </thead>\

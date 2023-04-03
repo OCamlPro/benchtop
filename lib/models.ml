@@ -263,18 +263,18 @@ module Problem_diff = struct
          p1.file LIKE ('%' || %string{file} || '%') AND ((((p1.res = \
          p1.file_expect AND p1.file_expect NOT IN ('error', 'unknown', \
          'timeout') AND p2.res <> p2.file_expect) OR \
-         (((p1.utime-p2.utime)/p1.utime < -%float{threshold} AND \
-         ROUND(p1.utime-p2.utime, 0) < -1 AND NOT (p1.res = 'timeout' AND \
+         ((((p1.utime+p1.stime)-(p2.utime+p2.stime))/(p1.utime+p1.stime) < -%float{threshold} AND \
+         ROUND((p1.utime+p1.stime)-(p2.utime+p2.stime), 0) < -1 AND NOT (p1.res = 'timeout' AND \
          p2.res = 'timeout')) AND %bool{show_rtime_reg})) AND \
          %Kind_diff{kind_diff} = 'improvement') OR (((p2.res = p2.file_expect \
          AND p2.file_expect NOT IN ('error', 'unknown', 'timeout') AND p1.res \
-         <> p1.file_expect) OR (((p1.utime-p2.utime)/p1.utime > \
-         %float{threshold} AND ROUND(p1.utime-p2.utime, 0) > 1 AND NOT (p1.res \
+         <> p1.file_expect) OR ((((p1.utime+p1.stime)-(p2.utime+p2.stime))/(p1.utime+p1.stime) > \
+         %float{threshold} AND ROUND((p1.utime+p1.stime)-(p2.utime+p2.stime), 0) > 1 AND NOT (p1.res \
          = 'timeout' AND p2.res = 'timeout')) AND %bool{show_rtime_reg})) AND \
          %Kind_diff{kind_diff} = 'regression') OR (((p1.res <> p2.res OR \
          p1.file_expect <> p2.file_expect OR p1.errcode <> p2.errcode) OR \
-         ((ABS(p1.utime-p2.utime)/p1.utime > %float{threshold} AND \
-         ABS(ROUND(p1.utime-p2.utime, 0)) > 1 AND NOT (p1.res = 'timeout' AND \
+         ((ABS((p1.utime+p1.stime)-(p2.utime+p2.stime))/(p1.utime+p1.stime) > %float{threshold} AND \
+         ABS(ROUND((p1.utime+p1.stime)-(p2.utime+p2.stime), 0)) > 1 AND NOT (p1.res = 'timeout' AND \
          p2.res = 'timeout')) OR %bool{show_rtime_reg})) AND \
          %Kind_diff{kind_diff} = 'difference'))\n\
         \      "]
@@ -296,19 +296,19 @@ module Problem_diff = struct
          AS p1 JOIN other.prover_res AS p2 ON p1.file = p2.file WHERE p1.file \
          LIKE ('%' || %string{file} || '%') AND ((((p1.res = p1.file_expect \
          AND p1.file_expect NOT IN ('error', 'unknown', 'timeout') AND p2.res \
-         <> p2.file_expect) OR (((p1.utime-p2.utime)/p1.utime < \
-         -%float{threshold} AND ROUND(p1.utime-p2.utime, 0) < -1 AND NOT \
+         <> p2.file_expect) OR ((((p1.utime+p1.stime)-(p2.utime+p2.stime))/(p1.utime+p1.stime) < \
+         -%float{threshold} AND ROUND((p1.utime+p1.stime)-(p2.utime+p2.stime), 0) < -1 AND NOT \
          (p1.res = 'timeout' AND p2.res = 'timeout')) AND \
          %bool{show_rtime_reg})) AND %Kind_diff{kind_diff} = 'improvement') OR \
          (((p2.res = p2.file_expect AND p2.file_expect NOT IN ('error', \
          'unknown', 'timeout') AND p1.res <> p1.file_expect) OR \
-         (((p1.utime-p2.utime)/p1.utime > %float{threshold} AND \
-         ROUND(p1.utime-p2.utime, 0) > 1 AND NOT (p1.res = 'timeout' AND \
+         ((((p1.utime+p1.stime)-(p2.utime+p2.stime))/(p1.utime+p1.stime) > %float{threshold} AND \
+         ROUND((p1.utime+p1.stime)-(p2.utime+p2.stime), 0) > 1 AND NOT (p1.res = 'timeout' AND \
          p2.res = 'timeout')) AND %bool{show_rtime_reg})) AND \
          %Kind_diff{kind_diff} = 'regression') OR (((p1.res <> p2.res OR \
          p1.file_expect <> p2.file_expect OR p1.errcode <> p2.errcode) OR \
-         ((ABS(p1.utime-p2.utime)/p1.utime > %float{threshold} AND \
-         ABS(ROUND(p1.utime-p2.utime, 0)) > 1 AND NOT (p1.res = 'timeout' AND \
+         ((ABS((p1.utime+p1.stime)-(p2.utime+p2.stime))/(p1.utime+p1.stime) > %float{threshold} AND \
+         ABS(ROUND((p1.utime+p1.stime)-(p2.utime+p2.stime), 0)) > 1 AND NOT (p1.res = 'timeout' AND \
          p2.res = 'timeout')) OR %bool{show_rtime_reg})) AND \
          %Kind_diff{kind_diff} = 'difference'))\n\
         \      ORDER BY CASE WHEN\n\
