@@ -121,11 +121,17 @@ let handle_problem_trace ?(is_full = false) request =
 
 let handle_schedule_round request =
   let ctx = Context.get () in
-  Misc.look_up_post_param request "prover"
-  >|? (fun binary ->
-        let new_round = Round.make ~binary in
-        Ok ({ queue = Rounds_queue.push new_round ctx.queue } |> Context.set))
-  >>= Helper.redirect request
+  let* res =
+    let*? prover = Misc.look_up_post_param request "prover" in
+    let*? options =
+      Misc.look_up_post_param request "options"
+      >|? String.split_on_char ','
+    in
+    let new_round = Round.make ~binary:prover ~options in
+    Lwt_result.return @@
+      (Context.set { queue = Rounds_queue.push new_round ctx.queue })
+  in
+  Helper.redirect request res
 
 let handle_stop_round request =
   Dream.form request >>= function

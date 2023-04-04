@@ -330,6 +330,23 @@ let benchpress_form request ~is_running provers =
         (key, value))
       provers
   in
+  let fpa_prelude_2017_option =
+    Filename.concat (Options.share_dir ())
+      "preludes/fpa-theory-2017-01-04-16h00.ae"
+    |> Fmt.str "--use-fpa --prelude %s"
+  in
+  let fpa_prelude_2019_option =
+    Filename.concat (Options.share_dir ())
+      "preludes/fpa-theory-2019-10-08-19h00.ae"
+    |> Fmt.str "--use-fpa --prelude %s"
+  in
+  let dolmen_option = "--frontend dolmen" in
+  let options = [
+    ("fpa + prelude 2017", fpa_prelude_2017_option);
+    ("fpa + prelude 2019", fpa_prelude_2019_option);
+    ("dolmen frontend", dolmen_option)
+  ]
+  in
   [%html "\
   <form class='d-flex flex-lg-row flex-column align-items-lg-center' \
     method='post' name='benchpress-controller' action='/benchpress/schedule'>\
@@ -339,10 +356,10 @@ let benchpress_form request ~is_running provers =
           ~default_option:(Placeholder "...")
           provers request] "\
     </div>\
-    <div class='p-2' hidden>\
-      " [Selector.make ~id:"config" ~label:"Config"
-          ~default_option:(Default_value {key="default"; value="default"})
-          [] request] "\
+    <div class='p-2'>\
+      " [Selector.make ~id:"options" ~label:"Options"
+          ~default_option:(Default_value {key="default"; value=""})
+          options request] "\
     </div>\
     <div class='p-2'>\
       <button class='btn btn-outline-success w-100' type='submit'>\

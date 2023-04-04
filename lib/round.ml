@@ -68,7 +68,12 @@ type t = {
     status : status;
   }
 
-let pp_bp_config ~binary fmt () =
+let pp_list ~sep =
+  let pp_sep fmt () = Format.fprintf fmt sep in
+  let pp_string fmt = Format.fprintf fmt "%s" in
+  Format.pp_print_list ~pp_sep pp_string
+
+let pp_bp_config ~binary ~options fmt () =
   let binary_path = Filename.concat (Options.binaries_dir ()) binary in
   let prover = Models.Prover.of_binary_name binary in
   Format.fprintf fmt
@@ -88,31 +93,28 @@ let pp_bp_config ~binary fmt () =
   (prover@ \
     @[<v 2>(name %s)@ \
     (version %s)@ \
-    (cmd \"%s --timelimit=$timeout $file\")@ \
+    (cmd \"%s %a --timelimit=$timeout $file\")@ \
     (sat \"^sat\")@ \
     (unsat \"Valid|(^unsat)\")@ \
     (unknown \"(I Don't Know)|(^unsat)\")@ \
     (timeout \"^timeout\"))@]@."[@ocamlformat "disable"] )
-    (Options.tests_dir ()) prover.name prover.version binary_path
+    (Options.tests_dir ()) prover.name prover.version
+    binary_path
+    (pp_list ~sep:" ") options
 
-let generate_bp_config ~binary =
+let generate_bp_config ~binary ~options =
   let filename, ch = Filename.open_temp_file "benchpress_" ".sexp" in
   let fmt = Format.formatter_of_out_channel ch in
-  pp_bp_config ~binary fmt ();
-  Dream.debug (fun log -> log "%a" (pp_bp_config ~binary) ());
+  pp_bp_config ~binary ~options fmt ();
+  Dream.debug (fun log -> log "%a" (pp_bp_config ~binary ~options) ());
   close_out ch;
   filename
 
-let pp_cmd fmt (_, args) =
-  let pp_sep fmt () = Format.fprintf fmt " " in
-  let pp_string fmt = Format.fprintf fmt "%s" in
-  Format.pp_print_list ~pp_sep pp_string fmt (Array.to_list args)
-
-let make ~binary =
+let make ~binary ~options =
   let now = Misc.now () in
   let id = Models.Time.show now |> String.to_bytes |> Uuidm.v4 in
   let prover = Models.Prover.of_binary_name binary in
-  let config_path = generate_bp_config ~binary in
+  let config_path = generate_bp_config ~binary ~options in
   let cmd =
         ( "benchpress",
           [|
@@ -132,7 +134,8 @@ let make ~binary =
             (Options.tests_dir ());
           |] )
   in
-  Dream.debug (fun log -> log "Command: %a" pp_cmd cmd);
+  Dream.debug (fun log -> log "Command: %a" (pp_list ~sep:" ")
+    (Array.to_list (snd cmd)));
   { id; prover; status = Pending { pending_since = now; cmd } }
 
 let retrieve_info db_file =

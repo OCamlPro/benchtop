@@ -29,7 +29,7 @@ type t = private {
 }
 
 
-val make : binary:string -> t
+val make : binary:string -> options:string list -> t
 val resurect : string -> (t, [> Error.round ]) Lwt_result.t
 val run : t -> (t, [> Error.round ]) Lwt_result.t
 val update : t -> (t, [> Error.round ]) Lwt_result.t
