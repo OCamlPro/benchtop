@@ -698,6 +698,7 @@ let render_problem_trace request ~file_content (pb : Models.Problem.t) =
 module Problem_diffs_list : sig
   val table :
     Dream.request ->
+    id:Uuidm.t ->
     prover_1:Models.Prover.t ->
     prover_2:Models.Prover.t ->
     Models.Problem_diff.t list ->
@@ -727,12 +728,10 @@ end = struct
       </td>\
     "] [@ocamlformat "disable"]
 
-  let row ~number ((problem1, problem2) : Models.Problem.t * Models.Problem.t)
-      _request =
+  let row ~number ~id
+      ((problem1, problem2) : Models.Problem.t * Models.Problem.t) _request =
     let pb_link =
-      (* TODO: fix this bug *)
-      Format.sprintf "/round//problem/%s/partial"
-        (Dream.to_base64url problem1.file)
+      Format.sprintf "/round/%s/problem/%s/partial" (Uuidm.to_string id) (Dream.to_base64url problem1.file)
     in
     [%html "
       <tr>\
@@ -753,9 +752,9 @@ end = struct
   let format_prover_header prover =
     Html.txt @@ Models.Prover.show prover
 
-  let table request ~prover_1 ~prover_2 pb_diffs =
+  let table request ~id ~prover_1 ~prover_2 pb_diffs =
     let rows =
-      List.mapi (fun i pb_diff -> row ~number:i pb_diff request) pb_diffs
+      List.mapi (fun i pb_diff -> row ~number:i ~id pb_diff request) pb_diffs
     in
     [%html "\
       <table class='table table-striped table-hover align-middle \
@@ -845,7 +844,7 @@ end = struct
    "] [@ocamlformat "disable"]
 end
 
-let render_rounds_diff request ~page ~total ~prover_1 ~prover_2 pbs_diff =
+let render_rounds_diff request ~page ~total ~id ~prover_1 ~prover_2 pbs_diff =
   let open Problem_diffs_list in
   let current_uri = Dream.target request |> Uri.of_string in
   let header_navbar, footer_navbar =
@@ -854,5 +853,5 @@ let render_rounds_diff request ~page ~total ~prover_1 ~prover_2 pbs_diff =
   in
   page_layout request ~subtitle:"Difference" ~hcontent:[ header_navbar ]
     ~fcontent:[ footer_navbar ]
-    [ table request ~prover_1 ~prover_2 pbs_diff ]
+    [ table request ~id ~prover_1 ~prover_2 pbs_diff ]
   |> Helper.html_to_string

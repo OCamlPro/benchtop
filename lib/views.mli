@@ -23,6 +23,7 @@ val render_rounds_diff :
   Dream.request ->
   page:int ->
   total:int ->
+  id:Uuidm.t ->
   prover_1:Models.Prover.t ->
   prover_2:Models.Prover.t ->
   Models.Problem_diff.t list ->
