@@ -11,7 +11,10 @@ module Helper : sig
   val color_of_res : Models.Res.t -> string
   val display_error : Dream.request -> [> Html_types.div ] Tyxml.Html.elt list
   val format_size : int -> string
+  val root : Dream.request -> string
 end = struct
+  let root request = (Dream.header request "Host" |> Option.get)
+
   let format_size =
     let div x y = (float_of_int x) /. (float_of_int y) in
     let max_b = 1024 in
@@ -78,10 +81,12 @@ end = struct
     | Error | Unexpected _ -> "text-danger"
 end
 
-let header_navbar ?(info = []) content =
+let header_navbar request ?(info = []) content =
   [%html "\
     <div class='container-fluid d-wrap flex-row flex-wrap'>\
-      <a class='navbar-brand text-primary' href='#'>Benchtop</a>\
+      <a class='navbar-brand text-primary' href='"
+        (Format.sprintf "http://%s" (Helper.root request))
+      "'>Benchtop</a>\
       <button class='navbar-toggler' type='button' \
         data-bs-toggle='collapse' data-bs-target='#collapse-content' \
         aria-controls='collapse-content' aria-expanded='false' \
@@ -485,7 +490,7 @@ let render_rounds_list request ~is_running rounds provers =
   let open Rounds_list in
   let rounds_table = table rounds in
   let navbar =
-    header_navbar
+    header_navbar request
       [ benchpress_form request ~is_running provers; action_form request ]
   in
   page_layout request ~subtitle:"Rounds" ~hcontent:[ navbar ] [ rounds_table ]
@@ -509,7 +514,7 @@ end = struct
     in
     let pb_file_link =
       let suffix = FilePath.reparent (Options.tests_dir ()) "/tests/" pb.file in
-      Format.sprintf "%s%s" (Dream.header request "Host" |> Option.get) suffix
+      Format.sprintf "http://%s%s" (Helper.root request) suffix
     in
     let pb_size = Unix.(stat pb.file).st_size |> Helper.format_size in
     [%html "
@@ -520,11 +525,11 @@ end = struct
         <td class='text-break'>\
           <a href='"pb_link"'>" [Html.txt pb.file] "</a>\
         </td>\
-        <th>
+        <td>
           <a href='"pb_file_link"' download='"(Some pb_name)"'>
             " [Html.txt ("Download (" ^ pb_size ^ ")")] "\
           </a>
-        </th>
+        </td>
         <td class='text-center'>\
           " [Html.txt (Helper.string_of_int pb.timeout)] "\
         </td>\
@@ -649,7 +654,7 @@ let render_round_detail request ~page ~total ~prover
   let current_uri = Dream.target request |> Uri.of_string in
   let table = table request pbs in
   let header_navbar, footer_navbar =
-    ( header_navbar
+    ( header_navbar request
         ~info:(round_summary request ~prover)
         [ filter_form request; action_form request ],
       footer_navbar [ pagination ~current_uri ~limit:50 ~page ~total ] )
@@ -770,7 +775,7 @@ end = struct
       let suffix =
         FilePath.reparent (Options.tests_dir ()) "/tests/" problem1.file
       in
-      Format.sprintf "%s%s" (Dream.header request "Host" |> Option.get) suffix
+      Format.sprintf "http://%s%s" (Helper.root request) suffix
     in
     let pb_size = Unix.(stat problem1.file).st_size |> Helper.format_size in
     [%html "
@@ -781,7 +786,7 @@ end = struct
         <td class='text-start text-break'>\
           " [Html.txt problem1.file] "\
         </td>\
-        <td>
+        <td style='text-align: left'>
           <a href='"pb_file_link"' download='"(Some pb_name)"'>
             " [Html.txt ("Download (" ^ pb_size ^ ")")] "\
           </a>
@@ -903,7 +908,7 @@ let render_rounds_diff request ~page ~total ~round1 ~round2 pbs_diff =
   let open Problem_diffs_list in
   let current_uri = Dream.target request |> Uri.of_string in
   let header_navbar, footer_navbar =
-    ( header_navbar [ filter_form request ],
+    ( header_navbar request [ filter_form request ],
       footer_navbar [ pagination ~current_uri ~limit:50 ~page ~total ] )
   in
   page_layout request ~subtitle:"Difference" ~hcontent:[ header_navbar ]
