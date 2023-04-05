@@ -174,8 +174,8 @@ let handle_rounds_diff request =
     Float.div x 100.
   in
   let view =
-    let*? uuid = get_uuid request "uuid1" in
     let*? round1 =
+      let*? uuid = get_uuid request "uuid1" in
       Rounds_queue.find_by_uuid ctx.queue uuid
     and*? round2 =
       let*? uuid = get_uuid request "uuid2" in
@@ -191,8 +191,7 @@ let handle_rounds_diff request =
     Models.(
       retrieve ~db_file:db_file1 ~db_attached:db_file2
         (Problem_diff.select ~file ~kind_diff ~show_rtime_reg ~page ~threshold))
-    >|? Views.render_rounds_diff request ~page ~total ~id:uuid
-          ~prover_1:(round1.prover) ~prover_2:(round2.prover)
+    >|? Views.render_rounds_diff request ~page ~total ~round1 ~round2
   in
   view >>= Helper.view_or_error_to_response request
 

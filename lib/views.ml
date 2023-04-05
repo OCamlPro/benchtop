@@ -539,10 +539,14 @@ end = struct
             <td>Problem</td>\
             <td class='text-center'>Timeout</td>\
             <td class='text-center'>Error code</td>\
-            <td class='text-center'>Wall time</td>\
-            <td class='text-center'>Running time</td>\
-            <td class='text-center'>User time</td>\
-            <td class='text-center'>Sys time</td>\
+            <td class='text-center' data-toggle='tooltip' data-placement='top' \
+              title='Wall time'>wtime</td>\
+            <td class='text-center' data-toggle='tooltip' data-placement='top' \
+              title='Real time'>rtime</td>\
+            <td class='text-center' data-toggle='tooltip' data-placement='top' \
+              title='User time'>utime</td>\
+            <td class='text-center' data-toggle='tooltip' data-placement='top' \
+              title='Sys time'>stime</td>\
             <td class='text-center'>Result</td>\
             <td class='text-center'>Expected</td>\
           </tr>\
@@ -698,16 +702,22 @@ let render_problem_trace request ~file_content (pb : Models.Problem.t) =
 module Problem_diffs_list : sig
   val table :
     Dream.request ->
-    id:Uuidm.t ->
-    prover_1:Models.Prover.t ->
-    prover_2:Models.Prover.t ->
+    round1: Round.t ->
+    round2: Round.t ->
     Models.Problem_diff.t list ->
     [> Html_types.tablex ] Tyxml.Html.elt
 
   val filter_form : Dream.request -> [> Html_types.form ] Tyxml.Html.elt
 end = struct
-  let format_problem (pb : Models.Problem.t) =
+  let format_problem ~id (pb : Models.Problem.t) =
+    let pb_link =
+      Format.sprintf "/round/%s/problem/%s/partial" (Uuidm.to_string id)
+        (Dream.to_base64url pb.file)
+    in
     [%html "\
+      <td>\
+        <a href='"pb_link"'> show </a>\
+      </td>\
       <td>\
         " [Html.txt (Helper.string_of_errcode pb.errcode)] "\
       </td>\
@@ -728,33 +738,51 @@ end = struct
       </td>\
     "] [@ocamlformat "disable"]
 
-  let row ~number ~id
+  let row ~number ~(round1 : Round.t) ~(round2 : Round.t)
       ((problem1, problem2) : Models.Problem.t * Models.Problem.t) _request =
-    let pb_link =
-      Format.sprintf "/round/%s/problem/%s/partial" (Uuidm.to_string id) (Dream.to_base64url problem1.file)
-    in
     [%html "
       <tr>\
         <th>"
           [check_selector ~number (Dream.to_base64url problem1.file)]
         "</th>\
         <td class='text-start text-break'>\
-          <a href='"pb_link"'>" [Html.txt problem1.file] "</a>\
+          " [Html.txt problem1.file] "\
         </td>\
         <td class='" [Helper.color_of_res problem1.file_expect] "' \
           style='border-right:1px black solid'>\
           " [Html.txt (Helper.string_of_res problem1.file_expect)] "\
         </td>\
-        " ((format_problem problem1) @ (format_problem problem2)) "
+        " ((format_problem ~id:round1.id problem1)
+          @ (format_problem ~id:round2.id problem2)) "
       </tr>\
     "] [@ocamlformat "disable"]
 
   let format_prover_header prover =
     Html.txt @@ Models.Prover.show prover
 
-  let table request ~id ~prover_1 ~prover_2 pb_diffs =
+  let table request ~(round1: Round.t) ~(round2: Round.t) pb_diffs =
     let rows =
-      List.mapi (fun i pb_diff -> row ~number:i ~id pb_diff request) pb_diffs
+      List.mapi (fun i pb_diff -> row ~number:i ~round1 ~round2 pb_diff request)
+        pb_diffs
+    in
+    let cols =
+      [%html "\
+        <th>Output</th>\
+        <th>Error code</th>\
+        <th data-toggle='tooltip' data-placement='top' title='Wall time'>\
+          wtime\
+        </th>\
+        <th data-toggle='tooltip' data-placement='top' title='Real time'>\
+          rtime\
+        </th>\
+        <th data-toggle='tooltip' data-placement='top' title='User time'>\
+          utime\
+        </th>\
+        <th data-toggle='tooltip' data-placement='top' title='Sys time'>\
+          stime\
+        </th>\
+        <th>Result</th>\
+      "] [@ocamlformat "disable"]
     in
     [%html "\
       <table class='table table-striped table-hover align-middle \
@@ -762,29 +790,18 @@ end = struct
         <thead>\
           <tr>\
             <th colspan='3'></th>\
-            <th colspan='6'>\
-              " [format_prover_header prover_1] "\
+            <th colspan='7'>\
+              " [format_prover_header round1.prover] "\
             </th>\
-            <th colspan='6'>\
-              " [format_prover_header prover_2] "\
+            <th colspan='7'>\
+              " [format_prover_header round2.prover] "\
             </th>\
           </tr>
           <tr>\
             <th>Select</th>\
             <th class='text-left'>Problem</th>\
             <th>Expected</th>\
-            <th>Error code</th>\
-            <th>Wall time</th>\
-            <th>Running time</th>\
-            <th>User time</th>\
-            <th>Sys time</th>\
-            <th>Result</th>\
-            <th>Error code</th>\
-            <th>Wall time</th>\
-            <th>Running time</th>\
-            <th>User time</th>\
-            <th>Sys time</th>\
-            <th>Result</th>\
+            " (cols @ cols) "
           </tr>\
         </thead>\
         <tbody class='table-group-divider'>\
@@ -844,7 +861,7 @@ end = struct
    "] [@ocamlformat "disable"]
 end
 
-let render_rounds_diff request ~page ~total ~id ~prover_1 ~prover_2 pbs_diff =
+let render_rounds_diff request ~page ~total ~round1 ~round2 pbs_diff =
   let open Problem_diffs_list in
   let current_uri = Dream.target request |> Uri.of_string in
   let header_navbar, footer_navbar =
@@ -852,6 +869,5 @@ let render_rounds_diff request ~page ~total ~id ~prover_1 ~prover_2 pbs_diff =
       footer_navbar [ pagination ~current_uri ~limit:50 ~page ~total ] )
   in
   page_layout request ~subtitle:"Difference" ~hcontent:[ header_navbar ]
-    ~fcontent:[ footer_navbar ]
-    [ table request ~id ~prover_1 ~prover_2 pbs_diff ]
+    ~fcontent:[ footer_navbar ] [ table request ~round1 ~round2 pbs_diff ]
   |> Helper.html_to_string
