@@ -10,7 +10,21 @@ module Helper : sig
   val string_of_res : Models.Res.t -> string
   val color_of_res : Models.Res.t -> string
   val display_error : Dream.request -> [> Html_types.div ] Tyxml.Html.elt list
+  val format_size : int -> string
 end = struct
+  let format_size =
+    let div x y = (float_of_int x) /. (float_of_int y) in
+    let max_b = 1024 in
+    let max_kib = max_b * max_b in
+    let max_mib = max_b * max_kib in
+    let max_gib = max_b * max_mib in
+    fun size ->
+    if size < max_b then Format.sprintf "%i B" size
+    else if size < max_kib then Format.sprintf "%.2f kiB" (div size max_b)
+    else if size < max_mib then Format.sprintf "%.2f MiB" (div size max_kib)
+    else if size < max_gib then Format.sprintf "%.2f GiB" (div size max_mib)
+    else Format.sprintf "%f TiB" (div size max_gib)
+
   let display_error request =
     match Error.get_session request with
     | Some err ->
@@ -489,9 +503,15 @@ end = struct
   let row request ~number pb =
     let open Models.Problem in
     let uuid = Dream.param request "uuid" in
+    let pb_name = Filename.basename pb.file in
     let pb_link =
       Format.sprintf "/round/%s/problem/%s/partial" uuid (Dream.to_base64url pb.file)
     in
+    let pb_file_link =
+      let suffix = FilePath.reparent (Options.tests_dir ()) "/tests/" pb.file in
+      Format.sprintf "%s%s" (Dream.header request "Host" |> Option.get) suffix
+    in
+    let pb_size = Unix.(stat pb.file).st_size |> Helper.format_size in
     [%html "
       <tr>\
         <th>\
@@ -500,6 +520,11 @@ end = struct
         <td class='text-break'>\
           <a href='"pb_link"'>" [Html.txt pb.file] "</a>\
         </td>\
+        <th>
+          <a href='"pb_file_link"' download='"(Some pb_name)"'>
+            " [Html.txt ("Download (" ^ pb_size ^ ")")] "\
+          </a>
+        </th>
         <td class='text-center'>\
           " [Html.txt (Helper.string_of_int pb.timeout)] "\
         </td>\
@@ -536,7 +561,7 @@ end = struct
         <thead>\
           <tr>\
             <th>Select</th>\
-            <td>Problem</td>\
+            <td colspan='2'>Problem</td>\
             <td class='text-center'>Timeout</td>\
             <td class='text-center'>Error code</td>\
             <td class='text-center' data-toggle='tooltip' data-placement='top' \
@@ -739,7 +764,15 @@ end = struct
     "] [@ocamlformat "disable"]
 
   let row ~number ~(round1 : Round.t) ~(round2 : Round.t)
-      ((problem1, problem2) : Models.Problem.t * Models.Problem.t) _request =
+      ((problem1, problem2) : Models.Problem.t * Models.Problem.t) request =
+    let pb_name = Filename.basename problem1.file in
+    let pb_file_link =
+      let suffix =
+        FilePath.reparent (Options.tests_dir ()) "/tests/" problem1.file
+      in
+      Format.sprintf "%s%s" (Dream.header request "Host" |> Option.get) suffix
+    in
+    let pb_size = Unix.(stat problem1.file).st_size |> Helper.format_size in
     [%html "
       <tr>\
         <th>"
@@ -748,6 +781,11 @@ end = struct
         <td class='text-start text-break'>\
           " [Html.txt problem1.file] "\
         </td>\
+        <td>
+          <a href='"pb_file_link"' download='"(Some pb_name)"'>
+            " [Html.txt ("Download (" ^ pb_size ^ ")")] "\
+          </a>
+        </td>
         <td class='" [Helper.color_of_res problem1.file_expect] "' \
           style='border-right:1px black solid'>\
           " [Html.txt (Helper.string_of_res problem1.file_expect)] "\
@@ -789,7 +827,7 @@ end = struct
         table-responsive text-center'>\
         <thead>\
           <tr>\
-            <th colspan='3'></th>\
+            <th colspan='4'></th>\
             <th colspan='7'>\
               " [format_prover_header round1.prover] "\
             </th>\
@@ -799,7 +837,7 @@ end = struct
           </tr>
           <tr>\
             <th>Select</th>\
-            <th class='text-left'>Problem</th>\
+            <th class='text-left' colspan='2'>Problem</th>\
             <th>Expected</th>\
             " (cols @ cols) "
           </tr>\

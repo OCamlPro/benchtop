@@ -25,6 +25,7 @@
   inotify.lwt
   uuidm
   camlzip
+  fileutils
   ppx_rapper_lwt)
  (preprocess
   (pps tyxml-ppx ppx_rapper)))

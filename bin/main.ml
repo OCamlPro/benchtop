@@ -33,6 +33,7 @@ let server interface port =
     @@ flash
     @@ router
          [
+           get "/tests/**" @@ static (Options.tests_dir ());
            get "/css/**" @@ static (List.hd Location.Sites.css);
            get "/scripts/**" @@ static (List.hd Location.Sites.scripts);
            get "/" @@ Handlers.handle_rounds_list;
