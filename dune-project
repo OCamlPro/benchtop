@@ -28,8 +28,12 @@
    (inotify (>= 2.0))
    dream
    (tyxml-ppx (>= 4.0.0))
+   caqti
+   caqti-lwt
    (caqti-driver-sqlite3 (>= 1.9.0))
    ppx_rapper_lwt
+   camlzip
+   fileutils
    benchpress)
  (tags
   (topics "to describe" your project))
