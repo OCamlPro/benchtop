@@ -56,6 +56,8 @@ type status =
       running_since : Unix.tm;
       watcher : Lwt_inotify.t;
       proc : Process.t;
+      db_file : string option;
+      summary : Models.Round_summary.t option;
     }
   | Done of {
       done_since : Unix.tm;
@@ -138,8 +140,11 @@ let make ~binary ~options =
     (Array.to_list (snd cmd)));
   { id; prover; status = Pending { pending_since = now; cmd } }
 
-let retrieve_info db_file =
-  let+? summary = Models.retrieve ~db_file (Models.Round_summary.retrieve ())
+let retrieve_summary db_file =
+  Models.retrieve ~db_file (Models.Round_summary.retrieve ())
+
+let resurect db_file =
+  let+? summary = retrieve_summary db_file
   and+? prover =
     Models.retrieve ~db_file (Models.Prover.select ~name:None ~version:None)
     >|? List.hd
@@ -148,8 +153,6 @@ let retrieve_info db_file =
      filename. *)
   let id = Filename.chop_extension db_file |> Uuidm.of_string |> Option.get in
   { id; prover; status = Done { done_since = summary.running_at; summary } }
-
-let resurect db_file = retrieve_info db_file
 
 let run { id; prover; status; _ } =
   match status with
@@ -162,7 +165,7 @@ let run { id; prover; status; _ } =
       Dream.debug (fun log -> log "Ready to run %s" name);
       let proc = Process.run ~cmd in
       Dream.debug (fun log -> log "Running %s" name);
-      Ok ({ id; prover; status = Running { running_since = Misc.now (); watcher; proc } })
+      Ok ({ id; prover; status = Running { running_since = Misc.now (); watcher; proc; db_file = None; summary = None } })
   | Running _ | Done _ -> Lwt_result.fail `Is_running
 
 let db_file { id; _ } = Format.sprintf "%s.sqlite" (Uuidm.to_string id)
@@ -177,16 +180,39 @@ let find_db_file round inotify =
 
 let update ({ status; _ } as round) =
   match status with
-  | Running { proc; watcher; _ } ->
-      if Process.is_done proc then (
-        find_db_file round watcher >>= function
-        | Ok db_file ->
-            Dream.debug (fun log -> log "Found the database %s" db_file);
-            retrieve_info db_file
-        | Error err ->
-            Dream.debug (fun log -> log "Benchpress output: %a" Process.pp_output proc);
-            Lwt_result.fail err)
-      else Lwt_result.return round
+  | Running ({ proc; watcher; db_file = None; _ } as state) ->
+    begin
+      find_db_file round watcher >>= function
+      | Ok db_file ->
+          Dream.debug (fun log -> log "Found the database %s" db_file);
+          let*? summary = retrieve_summary db_file in
+          Lwt_result.return
+            { round with status =
+                Running { state with
+                  db_file = Some db_file;
+                  summary = Some summary
+                }
+            }
+      | Error `Db_not_found when not @@ Process.is_done proc ->
+          Lwt_result.return round
+      | Error err ->
+          Dream.debug (fun log -> log "Benchpress output: %a" Process.pp_output proc);
+          Lwt_result.fail err
+    end
+  | Running ({ proc; db_file = Some db_file; _ } as state) ->
+      begin
+        let*? summary = retrieve_summary db_file in
+        if Process.is_done proc then
+          Lwt_result.return
+            { round with status =
+              Done { done_since = Misc.now (); summary }
+            }
+        else
+          Lwt_result.return
+            { round with status =
+              Running { state with summary = Some summary }
+            }
+      end
   | Pending _ | Done _ -> Lwt_result.return round
 
 let stop ({ status; _ } as round) =
