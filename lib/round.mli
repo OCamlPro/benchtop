@@ -16,6 +16,8 @@ type status = private
       running_since : Unix.tm;
       watcher : Lwt_inotify.t;
       proc : Process.t;
+      db_file : string option;
+      summary : Models.Round_summary.t option;
     }
   | Done of {
       done_since : Unix.tm;

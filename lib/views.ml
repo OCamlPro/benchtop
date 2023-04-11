@@ -426,7 +426,8 @@ end = struct
 
   let format_result (round : Round.t) =
     match round.status with
-    | Pending _ | Running _ -> Html.txt "Not yet"
+    | Pending _ | Running { summary = None; _ } -> Html.txt "Not yet"
+    | Running { summary = Some summary; _ }
     | Done { summary; _ } ->
         let str = Format.sprintf "%i/%i" summary.ctr_suc_pbs summary.ctr_pbs in
         Html.txt str
