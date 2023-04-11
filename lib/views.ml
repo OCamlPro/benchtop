@@ -483,7 +483,7 @@ end = struct
     "] [@ocamlformat "disable"]
 
   let action_form request =
-    action_form request ~actions:[ ("compare", "compare") ]
+    action_form request ~actions:[("compare", "compare"); ("remove", "remove")]
 end
 
 let render_rounds_list request ~is_running rounds provers =

@@ -8,3 +8,4 @@ val to_list : t -> (Round.t, Error.t) result list
 val find_by_uuid : t -> Uuidm.t -> (Round.t, [> Error.round]) Lwt_result.t
 val is_running : t -> bool
 val stop : t -> (t, [> Error.round]) Lwt_result.t
+val remove_by_uuid : t -> Uuidm.t -> (t, [> Error.round]) result

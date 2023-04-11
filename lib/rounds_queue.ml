@@ -62,6 +62,16 @@ let find_by_uuid { lst; _ } uuid =
   |> Option.to_result ~none:`Round_not_found
   |> Lwt.return
 
+let remove_by_uuid { lst; pos } uuid =
+  let rec aux = function
+    | Ok { Round.id; status = Done _; _ } :: tl when Uuidm.equal uuid id ->
+        Ok tl
+    | hd :: tl ->
+        Result.bind (aux tl) @@ fun tl -> Ok (hd :: tl)
+    | [] -> Error `Round_not_found
+  in
+  Result.bind (aux lst) @@ fun lst -> Ok { lst; pos }
+
 let is_running { lst; pos } =
   match pos with
   | Some i -> (
