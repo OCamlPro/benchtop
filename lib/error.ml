@@ -6,7 +6,8 @@ type round =
   | process
   | `Round_not_found
   | `Cannot_retrieve_info of string
-  | `Not_done ]
+  | `Not_done
+  | `Not_running ]
 
 type form =
   [ `Expired of (string * string) list * float
@@ -45,6 +46,7 @@ let pp_round fmt = function
   | `Cannot_retrieve_info db_file ->
       Fmt.pf fmt "Cannot retrieve data from the database %s" db_file
   | `Not_done -> Fmt.pf fmt "The round is still running"
+  | `Not_running -> Fmt.pf fmt "The round is not running"
 
 (* TODO: implement this function. *)
 let pp_form _fmt = function _ -> failwith "not implemented yet"

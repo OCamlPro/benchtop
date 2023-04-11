@@ -189,12 +189,11 @@ let update ({ status; _ } as round) =
       else Lwt_result.return round
   | Pending _ | Done _ -> Lwt_result.return round
 
-let stop ({ status; _ } as round) =
+let stop { status; _ } =
   match status with
   | Running { proc; _ } when not @@ Process.is_done proc ->
-      let+ rc = Process.stop proc in
-      Error (`Stopped rc)
-  | Pending _ | Running _ | Done _ -> Lwt_result.return round
+      Lwt_result.ok @@ Process.stop proc
+  | Pending _ | Running _ | Done _ -> Lwt_result.fail `Not_running
 
 let is_done { status; _ } =
   match status with

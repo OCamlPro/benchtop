@@ -134,9 +134,12 @@ let handle_schedule_round request =
   Helper.redirect request res
 
 let handle_stop_round request =
-  Dream.form request >>= function
-  | `Ok _ -> Dream.redirect request "/"
-  | _ -> Dream.empty `Bad_Request
+  let ctx = Context.get () in
+  let* res =
+    let*? queue = Rounds_queue.stop ctx.queue in
+    Lwt_result.return @@ Context.set { queue }
+  in
+  Helper.redirect request res
 
 (* TODO: clean up this part *)
 module Actions = struct
