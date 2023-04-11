@@ -198,20 +198,45 @@ let handle_rounds_diff request =
   in
   view >>= Helper.view_or_error_to_response request
 
+let rec fold ~f acc = function
+  | [] -> Ok acc
+  | hd :: tl ->
+      Result.bind (f acc hd) @@ fun acc -> fold ~f acc tl
+
 (* TODO: Clean up *)
 let handle_round_action_dispatcher request =
   Dream.form request >>= function
-  | `Ok (("action_kind", action_kind) :: params) -> (
-      match action_kind with
-      | "compare" -> (
-          match Actions.extract_selected_items params with
-          | [ uuid1; uuid2 ] ->
-              let path = Format.sprintf "/round/%s/diff/%s" uuid1 uuid2 in
-              Dream.redirect request path
-          | _ -> Dream.empty `Bad_Request)
-      | _ ->
-          Dream.error (fun log -> log "Unknown action %s" action_kind);
-          Dream.redirect request "/")
+  | `Ok (("action_kind", action_kind) :: params) ->
+      begin
+        match action_kind with
+        | "compare" ->
+            begin
+              match Actions.extract_selected_items params with
+              | [ uuid1; uuid2 ] ->
+                  let path = Format.sprintf "/round/%s/diff/%s" uuid1 uuid2 in
+                  Dream.redirect request path
+              | _ -> Dream.empty `Bad_Request
+            end
+        | "remove" ->
+            begin
+              match Actions.extract_selected_items params with
+              | [] -> Dream.empty `Bad_Request
+              | lst ->
+                  let ctx = Context.get () in
+                  let queue =
+                    List.map Uuidm.of_string lst
+                    |> List.map Option.get
+                    |> fold ~f:Rounds_queue.remove_by_uuid ctx.queue
+                  in
+                  let res =
+                    Result.bind queue @@ fun queue -> Ok (Context.set { queue })
+                  in
+                  Helper.redirect request res
+            end
+        | _ ->
+            Dream.error (fun log -> log "Unknown action %s" action_kind);
+            Dream.redirect request "/"
+      end
   | `Ok _ -> Dream.redirect request "/"
   | _ -> Dream.empty `Bad_Request
 
