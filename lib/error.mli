@@ -6,7 +6,8 @@ type round =
   | process
   | `Round_not_found
   | `Cannot_retrieve_info of string
-  | `Not_done ]
+  | `Not_done
+  | `Not_running ]
 
 type form =
   [ `Expired of (string * string) list * float

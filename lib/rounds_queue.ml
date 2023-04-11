@@ -69,3 +69,25 @@ let is_running { lst; pos } =
       | Ok round -> not @@ Round.is_done round
       | Error _ -> false)
   | None -> false
+
+let rec remove j = function
+  | [] -> failwith "remove: the list has no jth element"
+  | hd :: tl ->
+      if j = 0 then
+        let*? _ =
+          match hd with
+          | Ok round -> Round.stop round
+          | Error _ -> Lwt_result.fail `Not_running
+        in
+        Lwt_result.return tl
+      else
+        let*? tl = remove (j-1) tl in
+        Lwt_result.return (hd :: tl)
+
+let stop ({ lst; pos } as queue) =
+  match pos with
+  | Some j ->
+      let*? lst = remove j lst in
+      let pos = if j > 0 then Some (j-1) else None in
+      Lwt_result.return { lst; pos }
+  | None -> Lwt_result.return queue

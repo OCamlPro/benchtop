@@ -28,12 +28,11 @@ type t = private {
   status : status;
 }
 
-
 val make : binary:string -> options:string list -> t
 val resurect : string -> (t, [> Error.round ]) Lwt_result.t
 val run : t -> (t, [> Error.round ]) Lwt_result.t
 val update : t -> (t, [> Error.round ]) Lwt_result.t
-val stop : t -> (t, [> Error.round ]) Lwt_result.t
+val stop : t -> (Unix.process_status, [> Error.round ]) Lwt_result.t
 val summary : t -> (Models.Round_summary.t, [> Error.round ]) Lwt_result.t
 val db_file : t -> string
 val is_done : t -> bool
